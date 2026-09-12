@@ -1,0 +1,135 @@
+/* Styles for LegalDocuments component */
+.legal-docs-container {
+  padding: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  color: #111827;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.controls > .btn {
+  margin-left: 8px;
+}
+
+.form-panel {
+  padding: 16px;
+  margin: 12px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.03);
+}
+
+.form-title {
+  margin: 0 0 8px 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 13px;
+  color: #374151;
+  font-weight: 600;
+}
+
+.form-label-inline {
+  margin-left: 8px;
+  color: #374151;
+}
+
+.form-control {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.form-inline {
+  display: flex;
+  align-items: center;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Button fallbacks */
+.btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-primary { background: #2563eb; color: white; }
+.btn-secondary { background: #6b7280; color: white; }
+.btn-success { background: #10b981; color: white; }
+
+.docs-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.doc-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16,24,40,0.03);
+}
+
+.doc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.doc-title { margin: 0; font-size: 18px; }
+.doc-sub { margin: 4px 0 0; color: #6b7280; font-size: 13px; }
+
+.doc-badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.doc-badge.active { background: #dcfce7; color: #166534; }
+.doc-badge.inactive { background: #f3f4f6; color: #374151; }
+
+.doc-meta { margin-top: 12px; display: grid; gap: 6px; color: #374151; font-size: 13px; }
+
+.doc-meta.compact-meta { margin-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; color: #4b5563; font-size: 12px; }
+
+.doc-actions-row { margin-top: 10px; display: flex; justify-content: flex-end; }
+
+.btn-small { padding: 6px 10px; font-size: 12px; }
+
+.doc-content { margin-top: 12px; }
+.doc-content.compact-content { margin-top: 10px; }
+.doc-content-body { margin-top: 8px; padding: 10px; background: #f8fafc; border-radius: 8px; white-space: pre-wrap; font-size: 13px; line-height: 1.5; max-height: 120px; overflow: hidden; }
+
+@media (max-width: 700px) {
+  .two-col { grid-template-columns: 1fr; }
+  .doc-meta.compact-meta { grid-template-columns: 1fr; }
+}
