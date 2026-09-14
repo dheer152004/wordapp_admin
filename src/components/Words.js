@@ -19,10 +19,18 @@ import ImageEditor from './ImageEditor';
 import SortableWordRow from './SortableWordRow';
 import WordCard from './WordCard';
 
+const extractCategoryList = (data) => [
+  data,
+  data?.categories,
+  data?.content,
+  data?.data,
+].find(Array.isArray) || [];
+
 // ── Main Words Component ────────────────────────────────────────────────────
 function Words() {
   const [words, setWords] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [categoryDirectory, setCategoryDirectory] = useState({});
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingWord, setEditingWord] = useState(null);
@@ -32,6 +40,8 @@ function Words() {
   const [viewRaw, setViewRaw] = useState(null);
   const [viewShowRaw, setViewShowRaw] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categorySearchLoading, setCategorySearchLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [formData, setFormData] = useState({
     word: '',
@@ -76,13 +86,12 @@ function Words() {
   const fetchCategories = useCallback(async () => {
     try {
       const res = await api.get('/categories');
-      const categoryList = [
-        res.data,
-        res.data?.categories,
-        res.data?.content,
-        res.data?.data,
-      ].find(Array.isArray) || [];
+      const categoryList = extractCategoryList(res.data);
       setCategories(categoryList);
+      setCategoryDirectory(previous => ({
+        ...previous,
+        ...Object.fromEntries(categoryList.map(category => [category.id, category])),
+      }));
       if (categoryList.length > 0) setSelectedCategory(String(categoryList[0].id));
     } catch (err) { console.error(err); }
   }, []);
@@ -110,6 +119,41 @@ function Words() {
   }, [selectedCategory]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => {
+    if (!showModal) return undefined;
+    if (!categorySearch.trim()) {
+      fetchCategories();
+      return undefined;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setCategorySearchLoading(true);
+      try {
+        const res = await api.get('/categories/search', {
+          params: { q: categorySearch.trim(), page: 0, size: 10 },
+        });
+        if (active) {
+          const categoryList = extractCategoryList(res.data);
+          setCategories(categoryList);
+          setCategoryDirectory(previous => ({
+            ...previous,
+            ...Object.fromEntries(categoryList.map(category => [category.id, category])),
+          }));
+        }
+      } catch (err) {
+        if (active) setCategories([]);
+        console.error('Failed to search categories', err);
+      } finally {
+        if (active) setCategorySearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [categorySearch, showModal, fetchCategories]);
   useEffect(() => { fetchWords(); }, [selectedCategory, fetchWords]);
   useEffect(() => { if (reorderMessage) setSnackbarOpen(true); }, [reorderMessage]);
 
@@ -285,6 +329,7 @@ function Words() {
   const closeModal = () => {
     setShowModal(false);
     setEditingWord(null);
+    setCategorySearch('');
     setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
     setCroppedFile(null);
     setCroppedPreview('');
@@ -462,11 +507,14 @@ function Words() {
   if (loading) return <div className="loading">Loading words...</div>;
 
   return (
-    <div>
+    <div className="words-workspace">
       {/* ── Header ── */}
-      <div className="card-header">
+      <div className="card-header words-page-header">
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <h2>Words</h2>
+          <div>
+            <h2>Words</h2>
+            <p className="words-page-subtitle">Create and manage the vocabulary in your game.</p>
+          </div>
           <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
             {categories.map(cat => (
               <option key={cat.id} value={String(cat.id)}>{cat.name} ({cat.wordCount} words)</option>
@@ -477,7 +525,7 @@ function Words() {
           <button className="btn btn-info" onClick={handleRebalance} disabled={loading}>
             {loading ? 'Rebalancing…' : 'Rebalance Orders'}
           </button>
-          <button className="btn btn-primary" onClick={() => {
+          <button className="btn btn-primary words-add-button" onClick={() => {
             setEditingWord(null);
             setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
             setShowModal(true);
@@ -534,12 +582,28 @@ function Words() {
       {/* ── Add/Edit Modal ── */}
       {showModal && (
         <div className="modal" onClick={closeModal}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h3>{editingWord ? 'Edit Word' : 'Add Word'}</h3>
-            <form onSubmit={handleSubmit}>
-              <input type="text" placeholder="Word" value={formData.word}
+          <div className="modal-content word-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="word-modal-header">
+              <div>
+                <span className="word-modal-kicker">Word library</span>
+                <h3>{editingWord ? 'Edit Word' : 'Add New Word'}</h3>
+                <p>Define the word, its meaning, categories, and learning content.</p>
+              </div>
+              <button type="button" className="word-modal-close" onClick={closeModal}>×</button>
+            </div>
+            <div className="word-stepper" aria-label="Word form sections">
+              <span className="active"><b>1</b> Basic info</span><i />
+              <span><b>2</b> Content</span><i />
+              <span><b>3</b> Media</span><i />
+              <span><b>4</b> Additional</span>
+            </div>
+            <form onSubmit={handleSubmit} className="word-form">
+              <section className="word-form-section word-basic-section">
+                <div className="word-section-heading"><span className="section-icon">▣</span><div><strong>Basic information</strong><small>Start with the core details about this word.</small></div></div>
+              <label className="word-field"><span>Word <em>*</em></span><input type="text" placeholder="Enter a word or term" value={formData.word}
                 onChange={e => setFormData({ ...formData, word: e.target.value })} required />
-              <select value={formData.wordType} onChange={e => setFormData({ ...formData, wordType: e.target.value })} required>
+              </label>
+              <label className="word-field"><span>Word type <em>*</em></span><select value={formData.wordType} onChange={e => setFormData({ ...formData, wordType: e.target.value })} required>
                 <option value="ACRONYM">ACRONYM</option>
                 <option value="NORMAL_WORD">NORMAL_WORD</option>
                 <option value="ABBREVIATION">ABBREVIATION</option>
@@ -550,10 +614,11 @@ function Words() {
                 <option value="IDIOM">IDIOM</option>
                 <option value="PHRASAL_VERB">PHRASAL_VERB</option>
                 <option value="PROVERB">PROVERB</option>
-              </select>
-              <input type="text" placeholder="Expanded form (optional)" value={formData.expandedForm}
+              </select></label>
+              <label className="word-field"><span>Expanded form <small>(optional)</small></span><input type="text" placeholder="Full form or expansion" value={formData.expandedForm}
                 onChange={e => setFormData({ ...formData, expandedForm: e.target.value })} />
-              <select value={formData.partOfSpeech} onChange={e => setFormData({ ...formData, partOfSpeech: e.target.value })} required>
+              </label>
+              <label className="word-field"><span>Part of speech <em>*</em></span><select value={formData.partOfSpeech} onChange={e => setFormData({ ...formData, partOfSpeech: e.target.value })} required>
                 <option value="VERB">VERB</option>
                 <option value="NOUN">NOUN</option>
                 <option value="ADJECTIVE">ADJECTIVE</option>
@@ -566,9 +631,11 @@ function Words() {
                 <option value="DETERMINER">DETERMINER</option>
                 <option value="ARTICLE">ARTICLE</option>
                 <option value="OTHER">OTHER</option>
-              </select>
-              <textarea placeholder="Meaning" value={formData.meaning}
+              </select></label>
+              <label className="word-field word-meaning-field"><span>Meaning <em>*</em></span><textarea placeholder="Write a short and clear meaning" value={formData.meaning}
                 onChange={e => setFormData({ ...formData, meaning: e.target.value })} rows="3" required />
+              </label>
+              </section>
               <fieldset style={{ margin: '0 0 8px', padding: 12, border: '1px solid #d1d5db', borderRadius: 6 }}>
                 <legend style={{ padding: '0 6px', fontWeight: 600 }}>
                   Categories{' '}
@@ -576,8 +643,40 @@ function Words() {
                     Add category
                   </Link>
                 </legend>
-                {categories.length > 0 ? (
-                  <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                <input
+                  className="category-search-input"
+                  type="search"
+                  value={categorySearch}
+                  onChange={e => setCategorySearch(e.target.value)}
+                  placeholder="Search and select categories..."
+                  aria-label="Search categories"
+                />
+                {formData.categoryIds.length > 0 && (
+                  <div className="selected-category-chips">
+                    {formData.categoryIds.map(categoryId => {
+                      const category = categoryDirectory[categoryId] || categories.find(item => Number(item.id) === categoryId);
+                      return (
+                        <span key={categoryId} className="selected-category-chip">
+                          {category?.name || `Category ${categoryId}`}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${category?.name || `category ${categoryId}`}`}
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              categoryIds: prev.categoryIds.filter(id => id !== categoryId),
+                            }))}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+                {categorySearchLoading ? (
+                  <div className="category-search-status">Searching categories...</div>
+                ) : categories.length > 0 ? (
+                  <div className="category-search-results">
                     {categories.map(cat => {
                       const categoryId = Number(cat.id);
                       const selected = (formData.categoryIds || []).includes(categoryId);
@@ -600,8 +699,8 @@ function Words() {
                     })}
                   </div>
                 ) : (
-                  <div style={{ color: '#6b7280', fontSize: 13 }}>
-                    No categories available.{' '}
+                  <div className="category-search-status">
+                    {categorySearch.trim() ? 'No categories found.' : 'No categories available.'}{' '}
                     <Link to="/admin/categories">Add a category</Link>
                   </div>
                 )}
@@ -612,14 +711,75 @@ function Words() {
                 </div>
               </fieldset>
 
-              {/* ── Description ── */}
-              <div style={{ marginBottom: 8 }}>
+              <div className="word-form-section word-description-section" style={{ marginBottom: 8 }}>
+                <div className="word-section-heading"><span className="section-icon">▤</span><div><strong>Description</strong><small>Add context and supporting content.</small></div></div>
                 <textarea placeholder="Description" value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })} rows={3} style={{ width: '100%', padding: 8 }} />
               </div>
 
+                            {/* ── Facts ── */}
+              <div className="word-form-section word-facts-section" style={{ marginBottom: 8 }}>
+                <div className="word-section-heading"><span className="section-icon">✦</span><div><strong>Interesting facts</strong><small>Add short facts about the word.</small></div></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <label style={{ marginBottom: 6 }}>Facts</label>
+                  <button type="button" style={styles.btnAddExample} onClick={() => setFormData({ ...formData, facts: [...(formData.facts||[]), ''] })}>+ Add Fact</button>
+                </div>
+                  {formData.facts.length === 0 && (
+                  <p style={styles.factsEmpty}>No Facts yet. Click &quot;+ Add Facts&quot; to add one.</p>
+                )}
+                {(formData.facts || []).map((f, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                   <span style={styles.factNum}>{i + 1}</span>
+                    <input
+                      type="text"
+                      placeholder={`Facts sentence ${i + 1}`}
+                      value={f}
+                      onChange={e => {
+                        const updated = [...formData.facts];
+                        updated[i] = e.target.value;
+                        setFormData({ ...formData, facts: updated });
+                      }}
+                      style={styles.exampleInput}
+                    />
+                    <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, facts: formData.facts.filter((_, j) => j !== i) })}>&#x2715;</button>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Examples ── */}
+              <div className="word-form-section word-examples-section" style={styles.examplesSection}>
+                <div className="word-section-heading"><span className="section-icon">▤</span><div><strong>Examples</strong><small>Add example sentences to show usage.</small></div></div>
+                <div style={styles.examplesHeader}>
+                  <label style={styles.examplesLabel}>Examples</label>
+                  <button type="button" style={styles.btnAddExample} onClick={() => setFormData({ ...formData, examples: [...formData.examples, ''] })} > + Add Example </button>
+                </div>
+                {formData.examples.length === 0 && (
+                  <p style={styles.examplesEmpty}>No examples yet. Click &quot;+ Add Example&quot; to add one.</p>
+                )}
+                {formData.examples.map((ex, i) => (
+                  <div key={i} style={styles.exampleRow}>
+                    <span style={styles.exampleNum}>{i + 1}</span>
+                    <input
+                      type="text"
+                      placeholder={`Example sentence ${i + 1}`}
+                      value={ex}
+                      onChange={e => {
+                        const updated = [...formData.examples];
+                        updated[i] = e.target.value;
+                        setFormData({ ...formData, examples: updated });
+                      }}
+                      style={styles.exampleInput}
+                    />
+                    <button type="button"style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, examples: formData.examples.filter((_, j) => j !== i) })} >
+                      &#x2715;
+                    </button>
+                  </div>
+                ))}
+              </div>
+
               {/* ── Quiz Modes ── */}
-              <div style={{ marginBottom: 8 }}>
+              <div className="word-form-section" style={{ marginBottom: 8 }}>
+                <div className="word-section-heading"><span className="section-icon">✦</span><div><strong>Quiz modes</strong><small>Choose how learners can practice this word.</small></div></div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Quiz Modes</label>
                 <label style={{ marginRight: 12 }}>
                   <input type="checkbox" checked={(formData.quizModes||[]).includes('IMAGE')} onChange={e => {
@@ -646,7 +806,7 @@ function Words() {
 
 
               {/* ── Image Upload Zone ── */}
-              <div
+              <div className="word-form-section word-media-section"
                 ref={dropZoneRef}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
@@ -681,66 +841,11 @@ function Words() {
                 )}
               </div>
 
-              {/* ── Facts ── */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ marginBottom: 6 }}>Facts</label>
-                  <button type="button" style={styles.btnAddExample} onClick={() => setFormData({ ...formData, facts: [...(formData.facts||[]), ''] })}>+ Add Fact</button>
-                </div>
-                  {formData.facts.length === 0 && (
-                  <p style={styles.factsEmpty}>No Facts yet. Click &quot;+ Add Facts&quot; to add one.</p>
-                )}
-                {(formData.facts || []).map((f, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-                   <span style={styles.factNum}>{i + 1}</span>
-                    <input
-                      type="text"
-                      placeholder={`Facts sentence ${i + 1}`}
-                      value={f}
-                      onChange={e => {
-                        const updated = [...formData.facts];
-                        updated[i] = e.target.value;
-                        setFormData({ ...formData, facts: updated });
-                      }}
-                      style={styles.exampleInput}
-                    />
-                    <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, facts: formData.facts.filter((_, j) => j !== i) })}>&#x2715;</button>
-                  </div>
-                ))}
-              </div>
 
-              {/* ── Examples ── */}
-              <div style={styles.examplesSection}>
-                <div style={styles.examplesHeader}>
-                  <label style={styles.examplesLabel}>Examples</label>
-                  <button type="button" style={styles.btnAddExample} onClick={() => setFormData({ ...formData, examples: [...formData.examples, ''] })} > + Add Example </button>
-                </div>
-                {formData.examples.length === 0 && (
-                  <p style={styles.examplesEmpty}>No examples yet. Click &quot;+ Add Example&quot; to add one.</p>
-                )}
-                {formData.examples.map((ex, i) => (
-                  <div key={i} style={styles.exampleRow}>
-                    <span style={styles.exampleNum}>{i + 1}</span>
-                    <input
-                      type="text"
-                      placeholder={`Example sentence ${i + 1}`}
-                      value={ex}
-                      onChange={e => {
-                        const updated = [...formData.examples];
-                        updated[i] = e.target.value;
-                        setFormData({ ...formData, examples: updated });
-                      }}
-                      style={styles.exampleInput}
-                    />
-                    <button type="button"style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, examples: formData.examples.filter((_, j) => j !== i) })} >
-                      &#x2715;
-                    </button>
-                  </div>
-                ))}
-              </div>
 
               {/* ── Image URLs ── */}
-              <div style={{ marginBottom: 8 }}>
+              <div className="word-form-section word-image-urls-section" style={{ marginBottom: 8 }}>
+                <div className="word-section-heading"><span className="section-icon">▧</span><div><strong>Images</strong><small>Add images to make the word more engaging.</small></div></div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Image URLs</label>
                 {(formData.imageUrls || []).map((u, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
@@ -779,7 +884,7 @@ function Words() {
               </div>
 
               {/* ── Videos ── */}
-              <div style={{ marginBottom: 8 }}>
+              <div className="word-form-section word-video-section" style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', marginBottom: 6 }}>Videos</label>
                 {(formData.videos || []).map((item, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
@@ -803,7 +908,7 @@ function Words() {
               </div>
 
               {/* ── Audios ── */}
-              <div style={{ marginBottom: 8 }}>
+              <div className="word-form-section word-audio-section" style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', marginBottom: 6 }}>Audios</label>
                 {(formData.audios || []).map((item, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
@@ -897,8 +1002,10 @@ function Words() {
                 <input type="text" placeholder="Licences" value={formData.sourceAndCredits?.licences || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), licences: e.target.value } })} style={{ width: '100%', padding: 6 }} />
               </div>
 
-              <button type="submit" className="btn btn-primary">Save</button>
-              <button type="button" className="btn" onClick={closeModal}>Cancel</button>
+              <div className="word-form-actions">
+              <button type="button" className="btn word-cancel-button" onClick={closeModal}>Cancel</button>
+              <button type="submit" className="btn btn-primary">{editingWord ? 'Save Changes' : 'Save Word'}</button>
+              </div>
             </form>
           </div>
         </div>
