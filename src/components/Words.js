@@ -12,6 +12,7 @@ import {
 } from '@dnd-kit/sortable';
 import { Alert, CircularProgress, Snackbar } from '@mui/material';
 import api from '../services/api';
+import { Link } from 'react-router-dom';
 import { useWordReorder } from '../hooks/useWordReorder';
 import { rebalanceWordDisplayOrder } from '../services/wordReorderService';
 import ImageEditor from './ImageEditor';
@@ -38,7 +39,7 @@ function Words() {
     expandedForm: '',
     partOfSpeech: 'OTHER',
     meaning: '',
-    categoryId: '',
+    categoryIds: [],
     examples: [],
     wordImage: null,
     imageUrls: [],
@@ -75,8 +76,14 @@ function Words() {
   const fetchCategories = useCallback(async () => {
     try {
       const res = await api.get('/categories');
-      setCategories(res.data);
-      if (res.data.length > 0) setSelectedCategory(String(res.data[0].id));
+      const categoryList = [
+        res.data,
+        res.data?.categories,
+        res.data?.content,
+        res.data?.data,
+      ].find(Array.isArray) || [];
+      setCategories(categoryList);
+      if (categoryList.length > 0) setSelectedCategory(String(categoryList[0].id));
     } catch (err) { console.error(err); }
   }, []);
 
@@ -200,6 +207,11 @@ function Words() {
   // ── Submit ──
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.categoryIds?.length) {
+      alert('Please select at least one category.');
+      return;
+    }
+
     // Build payload following new schema
     const payload = {
       word: formData.word,
@@ -208,8 +220,11 @@ function Words() {
       partOfSpeech: formData.partOfSpeech,
       meaning: formData.meaning,
       description: formData.description || null,
-      categoryId: Number(formData.categoryId) || null,
-      imageUrls: [],
+      categories: (formData.categoryIds || [])
+        .map(Number)
+        .filter(Boolean)
+        .map(categoryId => ({ categoryId })),
+      images: [],
       videos: formData.videos || [],
       audios: formData.audios || [],
       facts: formData.facts || [],
@@ -242,13 +257,15 @@ function Words() {
 
         try {
           const dataUrl = await toDataUrl(imageToUpload);
-          payload.imageUrls = [dataUrl];
+          payload.images = [{ imageUrl: dataUrl }];
         } catch (err) {
           console.error('Failed to convert image to data URL', err);
-          payload.imageUrls = [];
+          payload.images = [];
         }
       } else if (formData.imageUrls && formData.imageUrls.length > 0) {
-        payload.imageUrls = formData.imageUrls.slice();
+        payload.images = formData.imageUrls
+          .map(imageUrl => ({ imageUrl }))
+          .filter(image => image.imageUrl);
       }
 
       if (editingWord) {
@@ -268,7 +285,7 @@ function Words() {
   const closeModal = () => {
     setShowModal(false);
     setEditingWord(null);
-    setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryId: '', examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
+    setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
     setCroppedFile(null);
     setCroppedPreview('');
     setRawImageFile(null);
@@ -309,7 +326,11 @@ function Words() {
       expandedForm: selectedWord.expandedForm || '',
       partOfSpeech: selectedWord.partOfSpeech || 'OTHER',
       meaning: (selectedWord.meaning || selectedWord.definition || selectedWord.mean) ?? '',
-      categoryId: selectedWord.categoryId || selectedWord.category_id || selectedWord.category?.id || '',
+      categoryIds: Array.isArray(selectedWord.categories)
+        ? selectedWord.categories.map(category => Number(category?.categoryId ?? category?.id ?? category)).filter(Boolean)
+        : Array.isArray(selectedWord.categoryIds)
+          ? selectedWord.categoryIds.map(category => Number(category?.id ?? category)).filter(Boolean)
+          : [selectedWord.categoryId || selectedWord.category_id || selectedWord.category?.id].filter(Boolean).map(Number),
       examples,
       wordImage: null,
       imageUrls,
@@ -382,7 +403,12 @@ function Words() {
         out.partOfSpeech = obj.partOfSpeech ?? null;
         out.meaning = obj.meaning ?? obj.definition ?? obj.mean ?? '';
         out.description = obj.description ?? obj.desc ?? null;
-        out.categoryId = obj.categoryId ?? obj.category_id ?? obj.category?.id ?? null;
+        out.categoryIds = Array.isArray(obj.categories)
+          ? obj.categories.map(category => Number(category?.categoryId ?? category?.id ?? category)).filter(Boolean)
+          : Array.isArray(obj.categoryIds)
+            ? obj.categoryIds.map(category => Number(category?.id ?? category)).filter(Boolean)
+            : [obj.categoryId ?? obj.category_id ?? obj.category?.id].filter(Boolean).map(Number);
+        out.categoryId = out.categoryIds[0] ?? null;
         const imgs = Array.isArray(obj.images) ? obj.images : (Array.isArray(obj.imageUrls) ? obj.imageUrls : (obj.image ? [obj.image] : []));
         // coerce to array of strings
         const imgUrls = (Array.isArray(imgs) ? imgs.map(i => {
@@ -453,7 +479,7 @@ function Words() {
           </button>
           <button className="btn btn-primary" onClick={() => {
             setEditingWord(null);
-            setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryId: '', examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
+            setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
             setShowModal(true);
           }}>+ Add Word</button>
         </div>
@@ -516,7 +542,14 @@ function Words() {
               <select value={formData.wordType} onChange={e => setFormData({ ...formData, wordType: e.target.value })} required>
                 <option value="ACRONYM">ACRONYM</option>
                 <option value="NORMAL_WORD">NORMAL_WORD</option>
-                <option value="ABBRIVATION">ABBRIVATION</option>
+                <option value="ABBREVIATION">ABBREVIATION</option>
+                <option value="CONTRACTION">CONTRACTION</option>
+                <option value="SHORTENED_WORD">SHORTENED_WORD</option>
+                <option value="BLEND">BLEND</option>
+                <option value="COMPOUND_WORD">COMPOUND_WORD</option>
+                <option value="IDIOM">IDIOM</option>
+                <option value="PHRASAL_VERB">PHRASAL_VERB</option>
+                <option value="PROVERB">PROVERB</option>
               </select>
               <input type="text" placeholder="Expanded form (optional)" value={formData.expandedForm}
                 onChange={e => setFormData({ ...formData, expandedForm: e.target.value })} />
@@ -536,11 +569,48 @@ function Words() {
               </select>
               <textarea placeholder="Meaning" value={formData.meaning}
                 onChange={e => setFormData({ ...formData, meaning: e.target.value })} rows="3" required />
-              <select value={formData.categoryId}
-                onChange={e => setFormData({ ...formData, categoryId: e.target.value })} required>
-                <option value="">Select Category</option>
-                {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-              </select>
+              <fieldset style={{ margin: '0 0 8px', padding: 12, border: '1px solid #d1d5db', borderRadius: 6 }}>
+                <legend style={{ padding: '0 6px', fontWeight: 600 }}>
+                  Categories{' '}
+                  <Link to="/admin/categories" style={{ fontSize: 12, fontWeight: 400 }}>
+                    Add category
+                  </Link>
+                </legend>
+                {categories.length > 0 ? (
+                  <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflowY: 'auto' }}>
+                    {categories.map(cat => {
+                      const categoryId = Number(cat.id);
+                      const selected = (formData.categoryIds || []).includes(categoryId);
+
+                      return (
+                        <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => setFormData(prev => ({
+                              ...prev,
+                              categoryIds: selected
+                                ? prev.categoryIds.filter(id => id !== categoryId)
+                                : [...prev.categoryIds, categoryId],
+                            }))}
+                          />
+                          <span>{cat.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ color: '#6b7280', fontSize: 13 }}>
+                    No categories available.{' '}
+                    <Link to="/admin/categories">Add a category</Link>
+                  </div>
+                )}
+                <div style={{ marginTop: 8, color: '#6b7280', fontSize: 12 }}>
+                  {formData.categoryIds.length > 0
+                    ? `${formData.categoryIds.length} categor${formData.categoryIds.length === 1 ? 'y' : 'ies'} selected`
+                    : 'Select at least one category'}
+                </div>
+              </fieldset>
 
               {/* ── Description ── */}
               <div style={{ marginBottom: 8 }}>

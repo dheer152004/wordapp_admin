@@ -120,7 +120,11 @@ export default function Users() {
               <thead style={{ background: '#f9fafb' }}>
                 <tr>
                   <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>ID</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Avatar</th>
                   <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Username</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Email</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Created At</th>
                   <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Roles</th>
                   <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Actions</th>
                 </tr>
@@ -129,7 +133,21 @@ export default function Users() {
                 {users.map(u => (
                   <tr key={u.id}>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>{u.id}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>
+                      {u.avatarUrl ? (
+                        <img
+                          src={u.avatarUrl}
+                          alt={u.displayName || u.username || 'User avatar'}
+                          style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <span style={{ color: '#6b7280' }}>—</span>
+                      )}
+                    </td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>{u.username}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>{u.displayName || '—'}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>{u.email || '—'}</td>
+                    <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>{formatDateTime(u.createdAt)}</td>
                     <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}>
                       {Array.isArray(u.roles) && u.roles.length > 0 ? (
                         u.roles.map((r, i) => (
