@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../services/api';
 import { Link } from 'react-router-dom';
 import UserConsents from './UserConsents';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
@@ -14,8 +15,9 @@ export default function Users() {
   const [deletedError, setDeletedError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editingUserId, setEditingUserId] = useState(null);
-  const [editingRoles, setEditingRoles] = useState([]);
+  const [deletingPendingId, setDeletingPendingId] = useState(null);
+  const [editingUserId, setEditingUserId] = usePersistentState('wordgame.users.editingUserId', null);
+  const [editingRoles, setEditingRoles] = usePersistentState('wordgame.users.editingRoles', []);
   const [savingUserId, setSavingUserId] = useState(null);
   const [showConsentsUserId, setShowConsentsUserId] = useState(null);
 
@@ -97,6 +99,22 @@ export default function Users() {
         setError(err?.response?.data?.message || err.message || 'Failed to save roles');
       })
       .finally(() => setSavingUserId(null));
+  }
+
+  function deletePendingRegistration(registrationId) {
+    if (!window.confirm('Delete this pending user registration?')) return;
+
+    setDeletingPendingId(registrationId);
+    api.delete(`/admin/users/pending-registrations/${registrationId}`)
+      .then(() => {
+        setPendingRegistrations(prev => prev.filter(registration => registration.id !== registrationId));
+        setPendingTotal(prev => Math.max(0, prev - 1));
+        setPendingError(null);
+      })
+      .catch(err => {
+        setPendingError(err?.response?.data?.message || err.message || 'Failed to delete pending user');
+      })
+      .finally(() => setDeletingPendingId(null));
   }
 
   return (
@@ -211,7 +229,6 @@ export default function Users() {
                   <thead style={{ background: '#f9fafb' }}>
                     <tr>
                       <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>ID</th>
-                      <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Original ID</th>
                       <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Username</th>
                       <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Email</th>
                       <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Display Name</th>
@@ -219,6 +236,7 @@ export default function Users() {
                       <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Verification Expires</th>
                       <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Accepted Documents</th>
                       <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Accepted From</th>
+                      <th style={{ textAlign: 'left', padding: '10px 12px', borderBottom: '1px solid #eef2f7' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -232,6 +250,14 @@ export default function Users() {
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>{formatDateTime(registration.verificationExpiresAt)}</td>
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>{registration.acceptedDocumentIds || '—'}</td>
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>{registration.acceptedFrom || '—'}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>
+                          <button
+                            onClick={() => deletePendingRegistration(registration.id)}
+                            disabled={deletingPendingId === registration.id}
+                          >
+                            {deletingPendingId === registration.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, NavLink, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Categories from './components/Categories';
 import AdminCategories from './components/AdminCategories';
@@ -40,15 +40,16 @@ function App() {
             </Link>
             <div className="sidebar-section-label">Workspace</div>
             <nav className="sidebar-nav">
-              <Link to="/dashboard">⌂ <span>Dashboard</span></Link>
-              <Link to="/words" className="sidebar-active">▣ <span>Words</span></Link>
-              <Link to="/">▦ <span>Categories</span></Link>
-              <Link to="/genres">◈ <span>Genres</span></Link>
-              <Link to="/quiz">✓ <span>Quiz management</span></Link>
-              <Link to="/bulk-import">↥ <span>Bulk import</span></Link>
-              <Link to="/users">♙ <span>Users</span></Link>
-              <Link to="/reports">▥ <span>Reports</span></Link>
-              <Link to="/legal-documents">▤ <span>Legal documents</span></Link>
+              <NavLink to="/dashboard" end>⌂ <span>Dashboard</span></NavLink>
+              <NavLink to="/words">▣ <span>Words</span></NavLink>
+              <NavLink to="/" end>▦ <span>Categories</span></NavLink>
+              <NavLink to="/admin/categories">▦ <span>Manage categories</span></NavLink>
+              <NavLink to="/genres">◈ <span>Genres</span></NavLink>
+              <NavLink to="/quiz">✓ <span>Quiz management</span></NavLink>
+              <NavLink to="/bulk-import">↥ <span>Bulk import</span></NavLink>
+              <NavLink to="/users">♙ <span>Users</span></NavLink>
+              <NavLink to="/reports">▥ <span>Reports</span></NavLink>
+              <NavLink to="/legal-documents">▤ <span>Legal documents</span></NavLink>
             </nav>
             <div className="sidebar-footer">
               <div className="sidebar-help">Need help?<small>Check the documentation or contact support.</small></div>

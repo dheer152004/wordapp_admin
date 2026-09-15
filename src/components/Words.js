@@ -14,6 +14,7 @@ import { Alert, CircularProgress, Snackbar } from '@mui/material';
 import api from '../services/api';
 import { Link } from 'react-router-dom';
 import { useWordReorder } from '../hooks/useWordReorder';
+import { usePersistentState } from '../hooks/usePersistentState';
 import { rebalanceWordDisplayOrder } from '../services/wordReorderService';
 import ImageEditor from './ImageEditor';
 import SortableWordRow from './SortableWordRow';
@@ -25,6 +26,59 @@ const extractCategoryList = (data) => [
   data?.content,
   data?.data,
 ].find(Array.isArray) || [];
+
+const extractWordList = (data) => [
+  data,
+  data?.words,
+  data?.content,
+  data?.data,
+  data?.data?.words,
+  data?.data?.content,
+  data?.result,
+  data?.payload,
+].find(Array.isArray) || [];
+
+const extractWordObject = (data) => [
+  data?.data?.word,
+  data?.result?.word,
+  data?.payload?.word,
+  data?.word,
+  data?.data,
+  data?.result,
+  data?.payload,
+  Array.isArray(data?.words) ? data.words[0] : null,
+  data,
+].find(value => value && typeof value === 'object' && !Array.isArray(value)) || null;
+
+const expandedFormConfig = {
+  ACRONYM: {
+    label: 'Expanded Form',
+    helper: 'The complete name represented by this acronym.',
+    example: 'NASA -> National Aeronautics and Space Administration',
+  },
+  INITIALISM: {
+    label: 'Expanded Form',
+    helper: 'The complete name represented by these initials.',
+    example: 'TCP -> Transmission Control Protocol',
+  },
+  ABBREVIATION: {
+    label: 'Expanded Form',
+    helper: 'The complete form of this abbreviation.',
+    example: 'approx. -> approximately',
+  },
+  CONTRACTION: {
+    label: 'Full Form',
+    helper: 'The original form before contraction.',
+    example: "can't -> cannot",
+  },
+  SHORTENED_WORD: {
+    label: 'Full Form',
+    helper: 'The complete form of this shortened word.',
+    example: 'ad -> advertisement',
+  },
+};
+
+const getExpandedFormConfig = (wordType) => expandedFormConfig[wordType] || null;
 
 // ── Main Words Component ────────────────────────────────────────────────────
 function Words() {
@@ -39,17 +93,21 @@ function Words() {
   const [viewLoading, setViewLoading] = useState(false);
   const [viewRaw, setViewRaw] = useState(null);
   const [viewShowRaw, setViewShowRaw] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategory, setSelectedCategory] = usePersistentState('wordgame.words.selectedCategory', '');
   const [categorySearch, setCategorySearch] = useState('');
   const [categorySearchLoading, setCategorySearchLoading] = useState(false);
+  const [relatedWordSearch, setRelatedWordSearch] = useState('');
+  const [relatedWordResults, setRelatedWordResults] = useState([]);
+  const [relatedWordSearchLoading, setRelatedWordSearchLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [formData, setFormData] = useState({
     word: '',
-    wordType: 'NORMAL_WORD',
+    wordType: 'WORD',
     expandedForm: '',
     partOfSpeech: 'OTHER',
     meaning: '',
     categoryIds: [],
+    categoryDisplayOrders: {},
     examples: [],
     wordImage: null,
     imageUrls: [],
@@ -78,6 +136,7 @@ function Words() {
 
   const { isReordering, reorderMessage, reorderWord } = useWordReorder({
     words: sortedWords,
+    categoryId: selectedCategory,
     setWords,
     onError: () => setSnackbarOpen(true),
   });
@@ -92,9 +151,11 @@ function Words() {
         ...previous,
         ...Object.fromEntries(categoryList.map(category => [category.id, category])),
       }));
-      if (categoryList.length > 0) setSelectedCategory(String(categoryList[0].id));
+      if (categoryList.length > 0) {
+        setSelectedCategory(current => current || String(categoryList[0].id));
+      }
     } catch (err) { console.error(err); }
-  }, []);
+  }, [setSelectedCategory]);
 
   const fetchWords = useCallback(async () => {
     if (!selectedCategory) return;
@@ -119,6 +180,33 @@ function Words() {
   }, [selectedCategory]);
 
   useEffect(() => { fetchCategories(); }, [fetchCategories]);
+  useEffect(() => {
+    if (!showModal || !relatedWordSearch.trim()) {
+      setRelatedWordResults([]);
+      return undefined;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setRelatedWordSearchLoading(true);
+      try {
+        const res = await api.get('/words/search', {
+          params: { q: relatedWordSearch.trim(), page: 0, size: 10 },
+        });
+        if (active) setRelatedWordResults(extractWordList(res.data));
+      } catch (err) {
+        if (active) setRelatedWordResults([]);
+        console.error('Failed to search related words', err);
+      } finally {
+        if (active) setRelatedWordSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [relatedWordSearch, showModal]);
   useEffect(() => {
     if (!showModal) return undefined;
     if (!categorySearch.trim()) {
@@ -260,14 +348,17 @@ function Words() {
     const payload = {
       word: formData.word,
       wordType: formData.wordType,
-      expandedForm: formData.expandedForm || null,
+      expandedForm: getExpandedFormConfig(formData.wordType) ? (formData.expandedForm || null) : null,
       partOfSpeech: formData.partOfSpeech,
       meaning: formData.meaning,
       description: formData.description || null,
       categories: (formData.categoryIds || [])
         .map(Number)
         .filter(Boolean)
-        .map(categoryId => ({ categoryId })),
+        .map(categoryId => ({
+          categoryId,
+          displayOrder: Number(formData.categoryDisplayOrders?.[categoryId]) || 10000,
+        })),
       images: [],
       videos: formData.videos || [],
       audios: formData.audios || [],
@@ -330,7 +421,8 @@ function Words() {
     setShowModal(false);
     setEditingWord(null);
     setCategorySearch('');
-    setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
+    setRelatedWordSearch('');
+    setFormData({ word: '', wordType: 'WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], categoryDisplayOrders: {}, examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
     setCroppedFile(null);
     setCroppedPreview('');
     setRawImageFile(null);
@@ -365,17 +457,31 @@ function Words() {
         ? selectedWord.also
         : [];
 
+    const categoryEntries = Array.isArray(selectedWord.categories)
+      ? selectedWord.categories
+      : Array.isArray(selectedWord.categoryIds)
+        ? selectedWord.categoryIds
+        : [selectedWord.categoryId || selectedWord.category_id || selectedWord.category].filter(Boolean);
+    const categoryIds = categoryEntries
+      .map(category => Number(category?.categoryId ?? category?.id ?? category))
+      .filter(Boolean);
+    const categoryDisplayOrders = Object.fromEntries(
+      categoryEntries
+        .map(category => {
+          const categoryId = Number(category?.categoryId ?? category?.id ?? category);
+          return categoryId ? [categoryId, Number(category?.displayOrder) || 10000] : null;
+        })
+        .filter(Boolean)
+    );
+
     return {
       word: selectedWord.word || selectedWord.name || selectedWord.title || '',
-      wordType: selectedWord.wordType || 'NORMAL_WORD',
-      expandedForm: selectedWord.expandedForm || '',
+      wordType: selectedWord.wordType || 'WORD',
+      expandedForm: getExpandedFormConfig(selectedWord.wordType) ? (selectedWord.expandedForm || '') : '',
       partOfSpeech: selectedWord.partOfSpeech || 'OTHER',
       meaning: (selectedWord.meaning || selectedWord.definition || selectedWord.mean) ?? '',
-      categoryIds: Array.isArray(selectedWord.categories)
-        ? selectedWord.categories.map(category => Number(category?.categoryId ?? category?.id ?? category)).filter(Boolean)
-        : Array.isArray(selectedWord.categoryIds)
-          ? selectedWord.categoryIds.map(category => Number(category?.id ?? category)).filter(Boolean)
-          : [selectedWord.categoryId || selectedWord.category_id || selectedWord.category?.id].filter(Boolean).map(Number),
+      categoryIds,
+      categoryDisplayOrders,
       examples,
       wordImage: null,
       imageUrls,
@@ -388,6 +494,19 @@ function Words() {
       sourceAndCredits: selectedWord['source&credits'] || selectedWord.sourceAndCredits || selectedWord.source || {},
       quizModes: Array.isArray(selectedWord.quizModes) ? selectedWord.quizModes : [],
     };
+  };
+
+  const handleEdit = async (selectedWord) => {
+    setEditingWord(selectedWord);
+    try {
+      const response = await api.get(`/admin/words/${selectedWord.id}`);
+      const fullWord = extractWordObject(response.data) || selectedWord;
+      setFormData(normalizeWordForEdit(fullWord));
+    } catch (error) {
+      console.error('Failed to load word for editing', error);
+      setFormData(normalizeWordForEdit(selectedWord));
+    }
+    setShowModal(true);
   };
 
   const handleDelete = async (id) => {
@@ -504,6 +623,15 @@ function Words() {
     }
   };
 
+  const stepProgress = [
+    Boolean(formData.word.trim() && formData.wordType && formData.partOfSpeech && formData.meaning.trim() && formData.categoryIds.length),
+    Boolean(formData.description.trim() || formData.examples.some(Boolean) || formData.facts.some(Boolean)),
+    Boolean(croppedFile || formData.imageUrls.length || formData.videos.length || formData.audios.length),
+    Boolean(formData.relatedWordIds.length || formData.alsoAppearsIn.length || Object.values(formData.sourceAndCredits).some(Boolean)),
+  ];
+  const activeStep = stepProgress.findIndex(completed => !completed);
+  const currentStep = activeStep === -1 ? stepProgress.length - 1 : activeStep;
+
   if (loading) return <div className="loading">Loading words...</div>;
 
   return (
@@ -527,7 +655,7 @@ function Words() {
           </button>
           <button className="btn btn-primary words-add-button" onClick={() => {
             setEditingWord(null);
-            setFormData({ word: '', wordType: 'NORMAL_WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
+            setFormData({ word: '', wordType: 'WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], categoryDisplayOrders: {}, examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
             setShowModal(true);
           }}>+ Add Word</button>
         </div>
@@ -560,11 +688,7 @@ function Words() {
                       <SortableWordRow
                         key={word.id}
                         word={word}
-                        onEdit={(selectedWord) => {
-                          setEditingWord(selectedWord);
-                          setFormData(normalizeWordForEdit(selectedWord));
-                          setShowModal(true);
-                        }}
+                        onEdit={handleEdit}
                         onView={handleView}
                         onDelete={handleDelete}
                         isReordering={isReordering}
@@ -592,10 +716,14 @@ function Words() {
               <button type="button" className="word-modal-close" onClick={closeModal}>×</button>
             </div>
             <div className="word-stepper" aria-label="Word form sections">
-              <span className="active"><b>1</b> Basic info</span><i />
-              <span><b>2</b> Content</span><i />
-              <span><b>3</b> Media</span><i />
-              <span><b>4</b> Additional</span>
+              {['Basic info', 'Content', 'Media', 'Additional'].map((label, index) => (
+                <React.Fragment key={label}>
+                  <span className={`${stepProgress[index] ? 'completed' : ''} ${currentStep === index ? 'active' : ''}`}>
+                    <b>{stepProgress[index] ? '✓' : index + 1}</b> {label}
+                  </span>
+                  {index < 3 && <i className={stepProgress[index] ? 'completed' : ''} />}
+                </React.Fragment>
+              ))}
             </div>
             <form onSubmit={handleSubmit} className="word-form">
               <section className="word-form-section word-basic-section">
@@ -603,9 +731,16 @@ function Words() {
               <label className="word-field"><span>Word <em>*</em></span><input type="text" placeholder="Enter a word or term" value={formData.word}
                 onChange={e => setFormData({ ...formData, word: e.target.value })} required />
               </label>
-              <label className="word-field"><span>Word type <em>*</em></span><select value={formData.wordType} onChange={e => setFormData({ ...formData, wordType: e.target.value })} required>
+              <label className="word-field"><span>Word type <em>*</em></span><select value={formData.wordType} onChange={e => {
+                const wordType = e.target.value;
+                setFormData(prev => ({
+                  ...prev,
+                  wordType,
+                  expandedForm: getExpandedFormConfig(wordType) ? prev.expandedForm : '',
+                }));
+              }} required>
                 <option value="ACRONYM">ACRONYM</option>
-                <option value="NORMAL_WORD">NORMAL_WORD</option>
+                <option value="WORD">WORD</option>
                 <option value="ABBREVIATION">ABBREVIATION</option>
                 <option value="CONTRACTION">CONTRACTION</option>
                 <option value="SHORTENED_WORD">SHORTENED_WORD</option>
@@ -615,9 +750,11 @@ function Words() {
                 <option value="PHRASAL_VERB">PHRASAL_VERB</option>
                 <option value="PROVERB">PROVERB</option>
               </select></label>
-              <label className="word-field"><span>Expanded form <small>(optional)</small></span><input type="text" placeholder="Full form or expansion" value={formData.expandedForm}
-                onChange={e => setFormData({ ...formData, expandedForm: e.target.value })} />
-              </label>
+              {getExpandedFormConfig(formData.wordType) && (
+                <label className="word-field expanded-form-field"><span>{getExpandedFormConfig(formData.wordType).label} <small>(optional)</small></span><input type="text" placeholder={getExpandedFormConfig(formData.wordType).example} value={formData.expandedForm}
+                  onChange={e => setFormData({ ...formData, expandedForm: e.target.value })} /><small className="field-helper">{getExpandedFormConfig(formData.wordType).helper} Example: {getExpandedFormConfig(formData.wordType).example}</small>
+                </label>
+              )}
               <label className="word-field"><span>Part of speech <em>*</em></span><select value={formData.partOfSpeech} onChange={e => setFormData({ ...formData, partOfSpeech: e.target.value })} required>
                 <option value="VERB">VERB</option>
                 <option value="NOUN">NOUN</option>
@@ -664,6 +801,9 @@ function Words() {
                             onClick={() => setFormData(prev => ({
                               ...prev,
                               categoryIds: prev.categoryIds.filter(id => id !== categoryId),
+                              categoryDisplayOrders: Object.fromEntries(
+                                Object.entries(prev.categoryDisplayOrders || {}).filter(([id]) => Number(id) !== categoryId)
+                              ),
                             }))}
                           >
                             ×
@@ -691,6 +831,9 @@ function Words() {
                               categoryIds: selected
                                 ? prev.categoryIds.filter(id => id !== categoryId)
                                 : [...prev.categoryIds, categoryId],
+                              categoryDisplayOrders: selected
+                                ? prev.categoryDisplayOrders
+                                : { ...prev.categoryDisplayOrders, [categoryId]: Number(cat.displayOrder) || 10000 },
                             }))}
                           />
                           <span>{cat.name}</span>
@@ -932,35 +1075,69 @@ function Words() {
               </div>
 
               {/* ── Related Word IDs ── */}
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ display: 'block', marginBottom: 6 }}>Related Word IDs</label>
+              <div className="word-form-section word-related-section" style={{ marginBottom: 8 }}>
+                <div className="word-section-heading"><span className="section-icon">↗</span><div><strong>Related Words</strong><small>Link to other related words.</small></div></div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Search and select words</label>
                 {(formData.relatedWordIds || []).map((item, i) => {
                   const value = typeof item === 'object' ? (item.wordId ?? item.id ?? '') : item;
-                  const displayName = typeof item === 'object' ? (item.word || item.name || '') : '';
+                  const displayName = typeof item === 'object' ? (item.word || item.name || item.title || '') : '';
                   return (
-                    <div key={i} style={{ display: 'flex', gap: 8, flexDirection: 'column', marginBottom: 6 }}>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input type="number" value={value} onChange={e => {
-                          const updated = [...formData.relatedWordIds];
-                          const newId = Number(e.target.value);
-                          updated[i] = typeof item === 'object' ? { ...item, wordId: newId, id: newId } : newId;
-                          setFormData({ ...formData, relatedWordIds: updated });
-                        }} style={{ padding: 6, flex: 1 }} />
-                        <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, relatedWordIds: formData.relatedWordIds.filter((_, j) => j !== i) })}>&#x2715;</button>
-                      </div>
-                      {displayName ? <div style={{ color: '#6b7280', fontSize: 12 }}>Name: {displayName}</div> : null}
+                    <div key={`${value}-${i}`} className="related-word-selected">
+                      <span>{displayName || `Word ${value}`}</span>
+                      <small>ID {value}</small>
+                      <button type="button" className="related-word-remove" onClick={() => setFormData(prev => ({
+                        ...prev,
+                        relatedWordIds: prev.relatedWordIds.filter((_, j) => j !== i),
+                      }))} aria-label={`Remove ${displayName || `word ${value}`}`}>×</button>
                     </div>
                   );
                 })}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="number" id="newRelatedId" placeholder="Add related word id" style={{ padding: 6 }} />
-                  <button type="button" style={styles.btnAddExample} onClick={() => { const el = document.getElementById('newRelatedId'); if (!el) return; const v = Number(el.value); if (!v) return; setFormData({ ...formData, relatedWordIds: [...(formData.relatedWordIds||[]), v] }); el.value = ''; }}>Add</button>
-                </div>
+                <input
+                  className="related-word-search-input"
+                  type="search"
+                  value={relatedWordSearch}
+                  onChange={e => setRelatedWordSearch(e.target.value)}
+                  placeholder="Search words by name..."
+                  aria-label="Search related words"
+                />
+                {relatedWordSearchLoading ? (
+                  <div className="related-word-search-status">Searching words...</div>
+                ) : relatedWordResults.length > 0 ? (
+                  <div className="related-word-results">
+                    {relatedWordResults.map(result => {
+                      const resultId = result.id ?? result.wordId;
+                      const resultName = result.word || result.name || result.title || `Word ${resultId}`;
+                      const alreadySelected = formData.relatedWordIds.some(item => (item?.wordId ?? item?.id ?? item) === resultId);
+
+                      return (
+                        <button
+                          type="button"
+                          key={resultId}
+                          className="related-word-result"
+                          disabled={alreadySelected || resultId == null}
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              relatedWordIds: [...prev.relatedWordIds, { ...result, wordId: resultId, word: resultName }],
+                            }));
+                            setRelatedWordSearch('');
+                            setRelatedWordResults([]);
+                          }}
+                        >
+                          <span>{resultName}</span><small>ID {resultId}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : relatedWordSearch.trim() ? (
+                  <div className="related-word-search-status">No matching words found.</div>
+                ) : null}
               </div>
 
               {/* ── Also Appears In ── */}
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ display: 'block', marginBottom: 6 }}>Also Appears In</label>
+              <div className="word-form-section word-also-section" style={{ marginBottom: 8 }}>
+                <div className="word-section-heading"><span className="section-icon">▦</span><div><strong>Also Appears In</strong><small>Link this word to another category and word.</small></div></div>
+                <label style={{ display: 'block', marginBottom: 6 }}>Category and word IDs</label>
                 {(formData.alsoAppearsIn || []).map((item, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, flexDirection: 'column', marginBottom: 6 }}>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -992,8 +1169,8 @@ function Words() {
               </div>
 
               {/* ── Source & Credits ── */}
-              <div style={{ marginBottom: 8 }}>
-                <label style={{ display: 'block', marginBottom: 6 }}>Source & Credits</label>
+              <div className="word-form-section word-credits-section" style={{ marginBottom: 8 }}>
+                <div className="word-section-heading"><span className="section-icon">▤</span><div><strong>Source &amp; Credits</strong><small>Give credit to the source of this information.</small></div></div>
                 <input type="text" placeholder="Author" value={formData.sourceAndCredits?.author || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), author: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
                 <input type="text" placeholder="Platform" value={formData.sourceAndCredits?.platform || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), platform: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
                 <input type="text" placeholder="URL" value={formData.sourceAndCredits?.url || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), url: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
@@ -1132,7 +1309,7 @@ const styles = {
   exampleRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 },
   exampleNum: { fontSize: 12, color: '#888', minWidth: 16, textAlign: 'right' },
   exampleInput: { flex: 1, padding: '6px 10px', borderRadius: 5, border: '1px solid #ccc', fontSize: 13 },
-  btnAddExample: { background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 },
+  btnAddExample: { background: '#1769ed', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 600 },
   btnRemoveExample: { background: '#ef4444', color: '#fff', border: 'none', borderRadius: 5, width: 24, height: 24, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   btnCancel: { padding: '8px 18px', borderRadius: 6, border: '1px solid #ccc', background: '#fff', cursor: 'pointer', fontSize: 14 },
   btnConfirm: { padding: '8px 18px', borderRadius: 6, border: 'none', background: '#4f46e5', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600 },

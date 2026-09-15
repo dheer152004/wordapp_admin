@@ -1,19 +1,24 @@
 export function calculateDisplayOrder({ previousWord, nextWord }) {
-  if (previousWord && nextWord) {
-    const gap = nextWord.displayOrder - previousWord.displayOrder;
+  const previousOrder = Number(previousWord?.displayOrder);
+  const nextOrder = Number(nextWord?.displayOrder);
+  const hasPreviousOrder = Number.isFinite(previousOrder);
+  const hasNextOrder = Number.isFinite(nextOrder);
+
+  if (hasPreviousOrder && hasNextOrder) {
+    const gap = nextOrder - previousOrder;
     if (gap <= 1) {
       return null;
     }
 
-    return Math.round((previousWord.displayOrder + nextWord.displayOrder) / 2);
+    return Math.round((previousOrder + nextOrder) / 2);
   }
 
-  if (nextWord) {
-    return Math.max(1, nextWord.displayOrder - 5000);
+  if (hasNextOrder) {
+    return Math.max(1, nextOrder - 5000);
   }
 
-  if (previousWord) {
-    return previousWord.displayOrder + 10000;
+  if (hasPreviousOrder) {
+    return previousOrder + 10000;
   }
 
   return 10000;

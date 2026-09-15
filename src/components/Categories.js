@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../services/api';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 const AGE_RATING_OPTIONS = [
   { value: 'ALL', label: 'ALL' },
@@ -433,7 +434,7 @@ function Categories() {
   const [showModal, setShowModal] = useState(false);
   const [editingCat, setEditingCat] = useState(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = usePersistentState('wordgame.categories.formData', {
     genreId: '',
     name: '',
     description: '',

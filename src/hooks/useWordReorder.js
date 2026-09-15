@@ -2,12 +2,19 @@ import { useCallback, useMemo, useState } from 'react';
 import { reorderWordDisplayOrder } from '../services/wordReorderService';
 import { calculateDisplayOrder, getReorderInsertionContext } from '../utils/displayOrder';
 
-export function useWordReorder({ words, setWords, onError }) {
+export function useWordReorder({ words, categoryId, setWords, onError }) {
   const [isReordering, setIsReordering] = useState(false);
   const [reorderMessage, setReorderMessage] = useState('');
 
   const reorderWord = useCallback(async (activeWordId, overWordId) => {
     if (isReordering) {
+      return;
+    }
+
+    if (categoryId == null || categoryId === '') {
+      const message = 'Select a category before changing display order.';
+      setReorderMessage(message);
+      onError?.(message);
       return;
     }
 
@@ -62,9 +69,16 @@ export function useWordReorder({ words, setWords, onError }) {
     });
 
     try {
-      const updatedWord = await reorderWordDisplayOrder(activeWord.id, newDisplayOrder);
+      const result = await reorderWordDisplayOrder(activeWord.id, Number(categoryId), newDisplayOrder);
+      const updatedCategory = result?.categories?.find(
+        (category) => Number(category.categoryId) === Number(categoryId)
+      );
       setWords((currentWords) =>
-        currentWords.map((item) => (item.id === updatedWord.id ? { ...item, displayOrder: updatedWord.displayOrder } : item))
+        currentWords.map((item) => (
+          item.id === activeWord.id
+            ? { ...item, displayOrder: updatedCategory?.displayOrder ?? newDisplayOrder }
+            : item
+        ))
       );
     } catch (error) {
       setWords(previousItems);
@@ -74,7 +88,7 @@ export function useWordReorder({ words, setWords, onError }) {
     } finally {
       setIsReordering(false);
     }
-  }, [isReordering, words, setWords, onError]);
+  }, [categoryId, isReordering, words, setWords, onError]);
 
   return useMemo(() => ({
     isReordering,

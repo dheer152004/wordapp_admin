@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import api from '../services/api';
 import ImageEditor from './ImageEditor';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 function Genre() {
   const [genres, setGenres] = useState([]);
@@ -8,7 +9,7 @@ function Genre() {
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingGenre, setEditingGenre] = useState(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = usePersistentState('wordgame.genres.formData', {
     name: '',
     imageUrl: '',
     description: '',
