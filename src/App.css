@@ -456,6 +456,7 @@ th { background: #f8f9fa; }
 .grammar-value-context span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 .grammar-value-context strong { font-size: 13px; }
 .grammar-value-context small { color: var(--muted); font-size: 11px; }
+.grammar-value-selected-category { color: var(--muted); font-size: 10px; font-weight: 400; }
 
 @media (max-width: 760px) {
   .languages-header { align-items: flex-start; flex-direction: column; }

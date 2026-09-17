@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import api from '../services/api';
 
 const emptyForm = {
+  languageId: '',
   grammarCategoryId: '',
   name: '',
   displayName: '',
@@ -12,6 +13,7 @@ const emptyForm = {
 
 function GrammarValues() {
   const [values, setValues] = useState([]);
+  const [languages, setLanguages] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -44,10 +46,20 @@ function GrammarValues() {
     }
   }, []);
 
+  const fetchLanguages = useCallback(async () => {
+    try {
+      const response = await api.get('/admin/languages');
+      setLanguages(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to load languages.');
+    }
+  }, []);
+
   useEffect(() => {
     fetchValues();
     fetchCategories();
-  }, [fetchValues, fetchCategories]);
+    fetchLanguages();
+  }, [fetchValues, fetchCategories, fetchLanguages]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -56,6 +68,7 @@ function GrammarValues() {
 
     try {
       const payload = {
+          grammarCategoryId: Number(formData.grammarCategoryId),
         name: formData.name.trim(),
         displayName: formData.displayName.trim(),
         description: formData.description.trim(),
@@ -66,10 +79,7 @@ function GrammarValues() {
       if (editingValue) {
         await api.patch(`/admin/grammar-values/${editingValue.id}`, payload);
       } else {
-        await api.post('/admin/grammar-values', {
-          grammarCategoryId: Number(formData.grammarCategoryId),
-          ...payload,
-        });
+          await api.post('/admin/grammar-values', payload);
       }
 
       setFormData(emptyForm);
@@ -100,15 +110,34 @@ function GrammarValues() {
     setFormData((current) => ({ ...current, [field]: value }));
   };
 
+  const categoriesForLanguage = categories.filter((category) => (
+    !formData.languageId || String(category.languageId) === String(formData.languageId)
+  ));
+
+  const handleLanguageChange = (languageId) => {
+    const matchingCategories = categories.filter((category) => String(category.languageId) === String(languageId));
+    setFormData((current) => ({
+      ...current,
+      languageId,
+      grammarCategoryId: matchingCategories.some((category) => String(category.id) === String(current.grammarCategoryId))
+        ? current.grammarCategoryId
+        : matchingCategories[0]?.id ? String(matchingCategories[0].id) : '',
+    }));
+  };
+
   const openCreateForm = () => {
     setEditingValue(null);
-    setFormData({ ...emptyForm, grammarCategoryId: categories[0]?.id ? String(categories[0].id) : '' });
+    const firstLanguageId = languages[0]?.id ? String(languages[0].id) : '';
+    const firstCategory = categories.find((category) => String(category.languageId) === firstLanguageId);
+    setFormData({ ...emptyForm, languageId: firstLanguageId, grammarCategoryId: firstCategory?.id ? String(firstCategory.id) : '' });
     setShowForm(true);
   };
 
   const openEditForm = (value) => {
     setEditingValue(value);
+    const languageId = value.languageId ? String(value.languageId) : value.grammarCategory?.languageId ? String(value.grammarCategory.languageId) : '';
     setFormData({
+      languageId,
       grammarCategoryId: value.grammarCategoryId ? String(value.grammarCategoryId) : '',
       name: value.name || '',
       displayName: value.displayName || '',
@@ -139,24 +168,28 @@ function GrammarValues() {
           <div className="language-form-heading">
             <div>
               <h2>{editingValue ? 'Edit grammar value' : 'Add grammar value'}</h2>
-              <p>{editingValue ? 'Update this value without changing its category.' : 'Define a value for a grammar category.'}</p>
+              <p>{editingValue ? 'Update the category and details for this grammar value.' : 'Define a value for a grammar category.'}</p>
             </div>
           </div>
           <div className="language-form-grid">
-            {editingValue ? (
-              <div className="grammar-value-context language-form-wide">
-                <span>Category</span>
-                <strong>{editingValue.grammarCategoryName || editingValue.grammarCategoryId}</strong>
-                <small>{editingValue.languageName || editingValue.languageId}{editingValue.languageCode ? ` (${editingValue.languageCode})` : ''}</small>
-              </div>
-            ) : (
-              <label>Grammar category
-                <select value={formData.grammarCategoryId} onChange={(event) => updateForm('grammarCategoryId', event.target.value)} required>
-                  <option value="">Select category</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.displayName || category.name}{category.languageName ? ` (${category.languageName})` : ''}</option>)}
-                </select>
-              </label>
-            )}
+            <label>Language
+              <select value={formData.languageId} onChange={(event) => handleLanguageChange(event.target.value)} required>
+                <option value="">Select language</option>
+                {languages.map((language) => <option key={language.id} value={language.id}>{language.name} ({language.code})</option>)}
+              </select>
+            </label>
+            <label>Grammar category
+              <select value={formData.grammarCategoryId} onChange={(event) => updateForm('grammarCategoryId', event.target.value)} required disabled={!formData.languageId || !categoriesForLanguage.length}>
+                <option value="">Select category</option>
+                {categoriesForLanguage.map((category) => <option key={category.id} value={category.id}>{category.displayName || category.name}</option>)}
+              </select>
+              {editingValue && (
+                <small className="grammar-value-selected-category">
+                  Current API category: {editingValue.grammarCategoryName || editingValue.grammarCategoryId}
+                  {editingValue.languageName ? ` - ${editingValue.languageName}` : ''}
+                </small>
+              )}
+            </label>
             <label>Name<input value={formData.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Present Tense" required /></label>
             <label>Display name<input value={formData.displayName} onChange={(event) => updateForm('displayName', event.target.value)} placeholder="Present Tense" required /></label>
             <label>Display order<input type="number" min="1" value={formData.displayOrder} onChange={(event) => updateForm('displayOrder', event.target.value)} required /></label>
@@ -165,7 +198,7 @@ function GrammarValues() {
           <div className="language-toggles"><label><input type="checkbox" checked={formData.isActive} onChange={(event) => updateForm('isActive', event.target.checked)} /> Value active</label></div>
           <div className="language-form-actions">
             <button className="btn" type="button" onClick={() => setShowForm(false)}>Cancel</button>
-            <button className="btn btn-primary" type="submit" disabled={saving || (!editingValue && !categories.length)}>{saving ? 'Saving...' : editingValue ? 'Update value' : 'Save value'}</button>
+            <button className="btn btn-primary" type="submit" disabled={saving || !formData.languageId || !formData.grammarCategoryId}>{saving ? 'Saving...' : editingValue ? 'Update value' : 'Save value'}</button>
           </div>
         </form>
       )}
