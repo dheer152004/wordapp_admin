@@ -56,6 +56,7 @@ function GrammarCategory() {
 
     try {
       const payload = {
+        languageId: Number(formData.languageId),
         name: formData.name.trim(),
         displayName: formData.displayName.trim(),
         description: formData.description.trim(),
@@ -66,10 +67,7 @@ function GrammarCategory() {
       if (editingCategory) {
         await api.patch(`/admin/grammar-categories/${editingCategory.id}`, payload);
       } else {
-        await api.post('/admin/grammar-categories', {
-          languageId: Number(formData.languageId),
-          ...payload,
-        });
+        await api.post('/admin/grammar-categories', payload);
       }
 
       setFormData(emptyForm);
@@ -143,14 +141,12 @@ function GrammarCategory() {
             </div>
           </div>
           <div className="language-form-grid">
-            {!editingCategory && (
-              <label>Language
-                <select value={formData.languageId} onChange={(event) => updateForm('languageId', event.target.value)} required>
-                  <option value="">Select language</option>
-                  {languages.map((language) => <option key={language.id} value={language.id}>{language.name} ({language.code})</option>)}
-                </select>
-              </label>
-            )}
+            <label>Language
+              <select value={formData.languageId} onChange={(event) => updateForm('languageId', event.target.value)} required>
+                <option value="">Select language</option>
+                {languages.map((language) => <option key={language.id} value={language.id}>{language.name} ({language.code})</option>)}
+              </select>
+            </label>
             <label>Name<input value={formData.name} onChange={(event) => updateForm('name', event.target.value)} placeholder="Tenses" required /></label>
             <label>Display name<input value={formData.displayName} onChange={(event) => updateForm('displayName', event.target.value)} placeholder="Tenses" required /></label>
             <label>Display order<input type="number" min="1" value={formData.displayOrder} onChange={(event) => updateForm('displayOrder', event.target.value)} required /></label>
