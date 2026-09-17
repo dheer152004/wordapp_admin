@@ -451,6 +451,11 @@ th { background: #f8f9fa; }
 .language-actions { white-space: nowrap; }
 .language-actions .btn { margin-right: 5px; }
 .grammar-category-name { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.grammar-values-page .language-form-grid label:first-child { grid-column: span 2; }
+.grammar-value-context { display: flex; flex-direction: column; gap: 4px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 5px; background: #f7faff; color: #29436f; }
+.grammar-value-context span { color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.grammar-value-context strong { font-size: 13px; }
+.grammar-value-context small { color: var(--muted); font-size: 11px; }
 
 @media (max-width: 760px) {
   .languages-header { align-items: flex-start; flex-direction: column; }

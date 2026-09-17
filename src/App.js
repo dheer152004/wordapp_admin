@@ -14,6 +14,7 @@ import Reports from './components/Reports';
 import LegalDocuments from './components/LegalDocuments';
 import Languages from './components/Languages';
 import GrammarCategory from './components/GrammarCategory';
+import GrammarValues from './components/GrammarValues';
 import './App.css';
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
               <NavLink to="/genres">◈ <span>Genres</span></NavLink>
               <NavLink to="/languages">L <span>Languages</span></NavLink>
               <NavLink to="/grammar-categories">G <span>Grammar categories</span></NavLink>
+              <NavLink to="/grammar-values">V <span>Grammar values</span></NavLink>
               <NavLink to="/quiz">✓ <span>Quiz management</span></NavLink>
               <NavLink to="/bulk-import">↥ <span>Bulk import</span></NavLink>
               <NavLink to="/users">♙ <span>Users</span></NavLink>
@@ -78,6 +80,7 @@ function App() {
             <Route path="/genres" element={token ? <Genre /> : <Navigate to="/login" />} />
             <Route path="/languages" element={token ? <Languages /> : <Navigate to="/login" />} />
             <Route path="/grammar-categories" element={token ? <GrammarCategory /> : <Navigate to="/login" />} />
+            <Route path="/grammar-values" element={token ? <GrammarValues /> : <Navigate to="/login" />} />
             <Route path="/admin/categories" element={token ? <AdminCategories /> : <Navigate to="/login" />} />
             <Route path="/legal-documents" element={token ? <LegalDocuments /> : <Navigate to="/login" />} />
             <Route path="/words" element={token ? <Words /> : <Navigate to="/login" />} />
