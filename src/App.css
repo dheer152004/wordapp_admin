@@ -428,6 +428,7 @@ th { background: #f8f9fa; }
 .language-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
 .language-form-grid label { display: flex; flex-direction: column; gap: 6px; color: #29436f; font-size: 11px; font-weight: 700; }
 .language-form-grid input, .language-form-grid textarea { width: 100%; border: 1px solid #d7e3f3; border-radius: 5px; background: #fbfdff; color: #29436f; font-size: 12px; padding: 9px 10px; }
+.language-form-grid select { width: 100%; border: 1px solid #d7e3f3; border-radius: 5px; background: #fbfdff; color: #29436f; font-size: 12px; padding: 9px 10px; }
 .language-form-grid textarea { resize: vertical; }
 .language-form-wide { grid-column: 1 / -1; }
 .language-toggles { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 16px; color: #29436f; font-size: 12px; }
@@ -447,6 +448,9 @@ th { background: #f8f9fa; }
 .language-detail-grid span { display: block; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
 .language-detail-grid strong, .language-detail-grid p { color: #29436f; font-size: 13px; margin: 0; }
 .language-detail-wide { grid-column: 1 / -1; }
+.language-actions { white-space: nowrap; }
+.language-actions .btn { margin-right: 5px; }
+.grammar-category-name { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
 
 @media (max-width: 760px) {
   .languages-header { align-items: flex-start; flex-direction: column; }
