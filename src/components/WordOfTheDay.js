@@ -13,6 +13,58 @@ const extractWordList = (data) => [
   data?.payload,
 ].find(Array.isArray) || [];
 
+const normalizeWordForView = (word) => {
+  if (!word || typeof word !== 'object') return null;
+
+  const categories = Array.isArray(word.categories)
+    ? word.categories
+    : Array.isArray(word.categoryIds)
+      ? word.categoryIds
+      : [word.categoryId ?? word.category_id ?? word.category?.id].filter(Boolean);
+  const categoryIds = categories
+    .map((category) => Number(category?.categoryId ?? category?.id ?? category))
+    .filter(Boolean);
+  const images = Array.isArray(word.images)
+    ? word.images
+    : Array.isArray(word.imageUrls)
+      ? word.imageUrls
+      : word.image
+        ? [word.image]
+        : [];
+  const imageUrls = images
+    .map((image) => typeof image === 'string' ? image : image?.imageUrl)
+    .filter((url) => typeof url === 'string')
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  return {
+    id: word.id ?? word.wordId ?? word._id ?? null,
+    word: word.word ?? word.name ?? word.title ?? '',
+    wordType: word.wordType ?? null,
+    expandedForm: word.expandedForm ?? null,
+    partOfSpeech: word.partOfSpeech ?? null,
+    meaning: word.meaning ?? word.definition ?? word.mean ?? '',
+    description: word.description ?? word.desc ?? null,
+    categoryIds,
+    categoryId: categoryIds[0] ?? null,
+    imageUrls,
+    images: imageUrls,
+    videos: Array.isArray(word.videos) ? word.videos : [],
+    audios: Array.isArray(word.audios) ? word.audios : [],
+    facts: Array.isArray(word.facts) ? word.facts : [],
+    examples: Array.isArray(word.examples) ? word.examples : Array.isArray(word.examplesList) ? word.examplesList : [],
+    relatedWordIds: Array.isArray(word.relatedWordIds)
+      ? word.relatedWordIds.filter((item) => item != null)
+      : Array.isArray(word.related)
+        ? word.related.filter((item) => item != null)
+        : [],
+    alsoAppearsIn: Array.isArray(word.alsoAppearsIn) ? word.alsoAppearsIn : Array.isArray(word.also) ? word.also : [],
+    'source&credits': word['source&credits'] || word.sourceAndCredits || word.source || {},
+    created: word.created ?? word.createdAt ?? word.created_at ?? null,
+    updated: word.updated ?? word.updatedAt ?? word.updated_at ?? null,
+  };
+};
+
 const getMonthRange = () => {
   const today = new Date();
   const year = today.getFullYear();
@@ -59,6 +111,8 @@ function WordOfTheDay() {
   const [viewWord, setViewWord] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState('');
+  const [viewRaw, setViewRaw] = useState(null);
+  const [viewShowRaw, setViewShowRaw] = useState(false);
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
@@ -80,7 +134,7 @@ function WordOfTheDay() {
 
   useEffect(() => {
     const query = wordSearch.trim();
-    if (!showForm || editingEntry || selectedWord || !query) {
+    if (!showForm || selectedWord || !query) {
       setWordResults([]);
       setWordSearchError('');
       setWordSearchLoading(false);
@@ -110,7 +164,7 @@ function WordOfTheDay() {
       active = false;
       clearTimeout(timer);
     };
-  }, [wordSearch, showForm, editingEntry, selectedWord]);
+  }, [wordSearch, showForm, selectedWord]);
 
   const resetForm = () => {
     setEditingEntry(null);
@@ -139,7 +193,10 @@ function WordOfTheDay() {
 
     try {
       if (editingEntry) {
-        await api.patch(`/admin/word-of-the-day/${editingEntry.wordOfTheDayId}`, payload);
+        await api.patch(`/admin/word-of-the-day/${editingEntry.wordOfTheDayId}`, {
+          ...payload,
+          wordId: formData.wordId,
+        });
       } else {
         await api.post('/word-of-the-day', { ...payload, wordId: Number(selectedWord?.id ?? selectedWord?.wordId) });
       }
@@ -156,7 +213,7 @@ function WordOfTheDay() {
     setEditingEntry(entry);
     setShowForm(true);
     setWordSearch('');
-    setSelectedWord(null);
+    setSelectedWord({ id: entry.wordId, word: `Word ${entry.wordId}` });
     setFormData({
       wordId: String(entry.wordId ?? ''),
       publishOn: formatDate(entry.publishOn),
@@ -179,16 +236,33 @@ function WordOfTheDay() {
     setViewLoading(true);
     setViewError('');
     setViewWord(null);
+    setViewRaw(null);
+    setViewShowRaw(false);
     try {
       const response = await api.get(`/admin/words/${wordId}`);
       const body = response.data;
-      const word = body?.data?.word || body?.data || body?.result?.word || body?.result || body?.word || body?.payload?.word || body?.payload || body;
-      setViewWord(word);
+      setViewRaw(body);
+      const extracted =
+        (body?.data && typeof body.data === 'object' && body.data) ||
+        (body?.result && typeof body.result === 'object' && body.result) ||
+        (body?.payload && typeof body.payload === 'object' && body.payload) ||
+        (body?.word && typeof body.word === 'object' && body.word) ||
+        body;
+      const normalized = normalizeWordForView(extracted || body);
+      setViewWord(normalized);
+      setViewShowRaw(!normalized || Object.keys(normalized).length === 0);
     } catch (err) {
       setViewError(err.response?.data?.message || err.message || 'Failed to load word details.');
     } finally {
       setViewLoading(false);
     }
+  };
+
+  const closeWordView = () => {
+    setViewWord(null);
+    setViewError('');
+    setViewRaw(null);
+    setViewShowRaw(false);
   };
 
   return (
@@ -210,8 +284,7 @@ function WordOfTheDay() {
           {editingEntry && <button type="button" className="btn btn-sm" onClick={resetForm}>Cancel edit</button>}
         </div>
         <div className="word-of-day-fields">
-          {!editingEntry && (
-            <div className="word-of-day-search">
+          <div className="word-of-day-search">
               <label htmlFor="word-of-day-search-input">Find a word</label>
               <input
                 id="word-of-day-search-input"
@@ -256,15 +329,14 @@ function WordOfTheDay() {
                 </div>
               )}
               {selectedWord && <div className="word-of-day-selected">Selected: {selectedWord.word ?? selectedWord.name ?? selectedWord.title} (ID {formData.wordId})</div>}
-            </div>
-          )}
+          </div>
           <label>Publish on<input type="date" value={formData.publishOn} onChange={(event) => setFormData((current) => ({ ...current, publishOn: event.target.value }))} required /></label>
           <label>Status<select value={formData.status} onChange={(event) => setFormData((current) => ({ ...current, status: event.target.value }))}>
             <option value="SCHEDULED">Scheduled</option>
             <option value="PUBLISHED">Published</option>
             <option value="CANCELLED">Cancelled</option>
           </select></label>
-          <button className="btn btn-primary" type="submit" disabled={saving || (!editingEntry && !selectedWord)}>{saving ? 'Saving...' : editingEntry ? 'Save changes' : 'Add to schedule'}</button>
+          <button className="btn btn-primary" type="submit" disabled={saving || !selectedWord}>{saving ? 'Saving...' : editingEntry ? 'Save changes' : 'Add to schedule'}</button>
         </div>
       </form>}
 
@@ -282,10 +354,11 @@ function WordOfTheDay() {
         ) : (
           <div className="word-of-day-table-wrap">
             <table className="word-of-day-table">
-              <thead><tr><th>Publish date</th><th>Word ID</th><th>Status</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Publish date</th><th>Word of the day ID</th><th>Word ID</th><th>Status</th><th>Created</th><th>Updated</th><th>Actions</th></tr></thead>
               <tbody>{entries.map((entry) => (
                 <tr key={entry.wordOfTheDayId}>
                   <td><strong>{formatDate(entry.publishOn)}</strong></td>
+                  <td>{entry.wordOfTheDayId ?? '—'}</td>
                   <td>{entry.wordId ?? '—'}</td>
                   <td><span className={`word-of-day-status status-${String(entry.status || '').toLowerCase()}`}>{entry.status || 'Unknown'}</span></td>
                   <td>{formatDateTime(entry.createdAt)}</td>
@@ -302,14 +375,14 @@ function WordOfTheDay() {
         )}
       </section>
 
-      {(viewLoading || viewWord || viewError) && (
-        <div className="modal" onClick={() => !viewLoading && (setViewWord(null), setViewError(''))}>
+      {(viewLoading || viewWord || viewError || viewRaw) && (
+        <div className="modal" onClick={() => !viewLoading && closeWordView()}>
           <div className="modal-content word-of-day-view-modal" onClick={(event) => event.stopPropagation()}>
             {viewLoading ? <div className="loading">Loading word...</div> : viewError ? (
               <>
                 <div className="word-of-day-view-heading">
                   <h2>Word details</h2>
-                  <button className="word-modal-close" type="button" aria-label="Close word details" onClick={() => setViewError('')}>×</button>
+                  <button className="word-modal-close" type="button" aria-label="Close word details" onClick={closeWordView}>×</button>
                 </div>
                 <div className="word-of-day-view-error" role="alert">{viewError}</div>
               </>
@@ -317,9 +390,18 @@ function WordOfTheDay() {
               <>
                 <div className="word-of-day-view-heading">
                   <h2>Word details</h2>
-                  <button className="word-modal-close" type="button" aria-label="Close word details" onClick={() => setViewWord(null)}>×</button>
+                  <div className="word-of-day-view-controls">
+                    {viewRaw && <button className="btn btn-sm" type="button" onClick={() => setViewShowRaw((current) => !current)}>{viewShowRaw ? 'Hide Raw' : 'Show Raw'}</button>}
+                    <button className="word-modal-close" type="button" aria-label="Close word details" onClick={closeWordView}>×</button>
+                  </div>
                 </div>
-                <WordCard word={viewWord} />
+                {viewShowRaw && viewRaw ? (
+                  <pre className="word-of-day-raw-response">{JSON.stringify(viewRaw, null, 2)}</pre>
+                ) : viewWord ? (
+                  <WordCard word={viewWord} />
+                ) : (
+                  <div className="word-of-day-view-error">No parsed word data available.</div>
+                )}
               </>
             )}
           </div>

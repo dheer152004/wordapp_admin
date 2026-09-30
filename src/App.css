@@ -223,7 +223,9 @@ th { background: #f8f9fa; }
 .word-of-day-view-modal { max-width: 1000px; padding: 18px; }
 .word-of-day-view-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .word-of-day-view-heading h2 { color: var(--ink); font-size: 18px; }
+.word-of-day-view-controls { display: flex; align-items: center; gap: 8px; }
 .word-of-day-view-error { color: #b91c1c; font-size: 13px; }
+.word-of-day-raw-response { max-height: 65vh; overflow: auto; padding: 12px; border-radius: 5px; background: #f8fafc; color: #334155; font-size: 11px; }
 
 @media (max-width: 760px) {
   .sidebar { width: 64px; padding: 16px 8px; }.brand-lockup { padding: 0 6px 24px; }.brand-lockup > span:last-child, .sidebar-section-label, .sidebar-nav span, .sidebar-help, .sidebar-logout { display: none; }.sidebar-nav a { justify-content: center; padding: 11px 4px; font-size: 17px; }.sidebar-footer { display: none; }
