@@ -183,10 +183,40 @@ th { background: #f8f9fa; }
 .word-form-actions .btn { min-width: 112px; }.word-cancel-button { background: #fff; color: #4f6590; border: 1px solid var(--line); }
 .word-form .btn-primary { background: var(--blue); }.word-form > div:not(.word-form-section):not(.word-form-actions) { color: #4d6389; }
 
+.word-of-day-page { color: var(--ink); }
+.word-of-day-header, .word-of-day-list-header, .word-of-day-form-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.word-of-day-header { margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.word-of-day-header h1 { font-size: 25px; }
+.word-of-day-header p, .word-of-day-list-header p { margin-top: 5px; color: var(--muted); font-size: 12px; }
+.word-of-day-kicker { margin-bottom: 5px; color: var(--blue); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.word-of-day-page .card { border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(32, 76, 140, .06); }
+.word-of-day-form h2, .word-of-day-list h2 { font-size: 16px; }
+.word-of-day-form-title { margin-bottom: 16px; }
+.word-of-day-fields { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.3fr) minmax(160px, 1fr) auto; align-items: end; gap: 12px; }
+.word-of-day-fields label, .word-of-day-range label { display: grid; gap: 6px; color: #526789; font-size: 11px; font-weight: 700; }
+.word-of-day-fields input, .word-of-day-fields select, .word-of-day-range input { width: 100%; min-height: 36px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; background: #fff; color: var(--ink); }
+.word-of-day-fields .btn { min-height: 36px; white-space: nowrap; }
+.word-of-day-error { margin-bottom: 14px; padding: 11px 13px; border: 1px solid #fecaca; border-radius: 6px; background: #fff1f2; color: #b91c1c; font-size: 12px; }
+.word-of-day-list-header { margin-bottom: 16px; }
+.word-of-day-range { display: flex; align-items: end; gap: 10px; }
+.word-of-day-range label { min-width: 140px; }
+.word-of-day-table-wrap { overflow-x: auto; }
+.word-of-day-table { min-width: 780px; }
+.word-of-day-table th { color: #526789; font-size: 10px; text-transform: uppercase; }
+.word-of-day-table td { color: #29436f; font-size: 12px; }
+.word-of-day-status { display: inline-block; padding: 4px 8px; border-radius: 4px; background: #edf2fa; color: #526789; font-size: 10px; font-weight: 800; }
+.status-published { background: #dcfce7; color: #166534; }
+.status-scheduled { background: #eaf2ff; color: #1756a9; }
+.status-cancelled { background: #fee2e2; color: #b91c1c; }
+.word-of-day-actions { white-space: nowrap; }
+.word-of-day-empty { padding: 30px 12px; color: var(--muted); text-align: center; font-size: 12px; }
+.word-of-day-page .btn-primary { background: var(--blue); }
+
 @media (max-width: 760px) {
   .sidebar { width: 64px; padding: 16px 8px; }.brand-lockup { padding: 0 6px 24px; }.brand-lockup > span:last-child, .sidebar-section-label, .sidebar-nav span, .sidebar-help, .sidebar-logout { display: none; }.sidebar-nav a { justify-content: center; padding: 11px 4px; font-size: 17px; }.sidebar-footer { display: none; }
   .topbar { padding: 0 14px; }.search-shell { width: 48px; overflow: hidden; white-space: nowrap; }.search-shell span { display: none; }.container { padding: 18px 14px; }
   .word-form { grid-template-columns: 1fr; padding: 14px; }.word-basic-section, .word-form fieldset, .word-media-section { grid-column: auto; }.word-stepper { padding: 12px 14px; overflow-x: auto; }.word-stepper i { min-width: 20px; }.word-modal-header { padding: 18px; }
+  .word-of-day-header, .word-of-day-list-header { align-items: flex-start; flex-direction: column; }.word-of-day-fields { grid-template-columns: 1fr; }.word-of-day-range { width: 100%; flex-wrap: wrap; }.word-of-day-range label { flex: 1 1 130px; }
 }
 /* Profile Test Component Styles */
 .profile-test-container {

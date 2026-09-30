@@ -15,6 +15,7 @@ import LegalDocuments from './components/LegalDocuments';
 import Languages from './components/Languages';
 import GrammarCategory from './components/GrammarCategory';
 import GrammarValues from './components/GrammarValues';
+import WordOfTheDay from './components/WordOfTheDay';
 import './App.css';
 
 function App() {
@@ -46,13 +47,14 @@ function App() {
               <NavLink to="/dashboard" end>⌂ <span>Dashboard</span></NavLink>
               <NavLink to="/words">▣ <span>Words</span></NavLink>
               <NavLink to="/" end>▦ <span>Categories</span></NavLink>
-              <NavLink to="/admin/categories">▦ <span>Manage categories</span></NavLink>
+              {/* <NavLink to="/admin/categories">▦ <span>Manage categories</span></NavLink> */}
               <NavLink to="/genres">◈ <span>Genres</span></NavLink>
               <NavLink to="/languages">L <span>Languages</span></NavLink>
               <NavLink to="/grammar-categories">G <span>Grammar categories</span></NavLink>
               <NavLink to="/grammar-values">V <span>Grammar values</span></NavLink>
               <NavLink to="/quiz">✓ <span>Quiz management</span></NavLink>
-              <NavLink to="/bulk-import">↥ <span>Bulk import</span></NavLink>
+              <NavLink to="/word-of-the-day">✦ <span>Word of the day</span></NavLink>
+              {/* <NavLink to="/bulk-import">↥ <span>Bulk import</span></NavLink> */}
               <NavLink to="/users">♙ <span>Users</span></NavLink>
               <NavLink to="/reports">▥ <span>Reports</span></NavLink>
               <NavLink to="/legal-documents">▤ <span>Legal documents</span></NavLink>
@@ -85,6 +87,7 @@ function App() {
             <Route path="/legal-documents" element={token ? <LegalDocuments /> : <Navigate to="/login" />} />
             <Route path="/words" element={token ? <Words /> : <Navigate to="/login" />} />
             <Route path="/quiz" element={token ? <Quiz /> : <Navigate to="/login" />} />
+            <Route path="/word-of-the-day" element={token ? <WordOfTheDay /> : <Navigate to="/login" />} />
             <Route path="/bulk-import" element={token ? <BulkImport /> : <Navigate to="/login" />} />
             <Route path="/profile-test" element={token ? <ProfileTest /> : <Navigate to="/login" />} />
             <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
