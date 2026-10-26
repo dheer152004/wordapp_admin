@@ -1,0 +1,51 @@
+.app-versions-page { color: #192d43; }
+.app-versions-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); padding: 4px 0 20px; margin-bottom: 22px; }
+.app-versions-eyebrow, .app-version-kicker { color: #147d73; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.app-versions-header h1 { margin-top: 5px; font-size: 25px; }
+.app-versions-header p:last-child { color: var(--muted); font-size: 12px; margin-top: 5px; }
+.app-version-platforms { display: flex; border: 1px solid #d8e3e9; border-radius: 6px; padding: 3px; background: #fff; }
+.app-version-platforms button { border: 0; border-radius: 4px; color: #647583; background: transparent; padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.app-version-platforms button.selected { background: #166f67; color: #fff; }
+.app-version-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, .8fr); gap: 20px; align-items: start; }
+.app-version-form, .app-version-preview { background: #fff; border: 1px solid #dbe5e8; border-radius: 7px; }
+.app-version-form-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 19px 21px; border-bottom: 1px solid #e7edef; }
+.app-version-form-heading h2, .app-version-preview h2 { font-size: 16px; margin-top: 5px; }
+.app-version-status { border: 1px solid #d4dfe2; border-radius: 5px; padding: 7px 9px; background: white; color: #74818b; font-size: 11px; cursor: pointer; }
+.app-version-status span { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #9ba7ad; }
+.app-version-status.is-enabled { color: #147d73; border-color: #bbdfd9; }
+.app-version-status.is-enabled span { background: #16977f; }
+.app-version-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; padding: 20px 21px; }
+.app-version-fields label { min-width: 0; display: flex; flex-direction: column; gap: 6px; color: #405362; font-size: 11px; font-weight: 700; }
+.app-version-fields input:not([type="checkbox"]), .app-version-fields textarea { width: 100%; min-width: 0; border: 1px solid #d8e2e6; border-radius: 5px; padding: 9px 10px; color: #233a4c; font: inherit; font-weight: 400; }
+.app-version-fields input:focus, .app-version-fields textarea:focus { outline: 2px solid #c9e5df; border-color: #238c80; }
+.app-version-fields textarea { resize: vertical; }
+.app-version-wide { grid-column: 1 / -1; }
+.app-version-fields .app-version-force { display: flex; flex-direction: row; align-items: center; gap: 9px; border: 1px solid #e1e8eb; border-radius: 5px; padding: 8px 10px; }
+.app-version-force input { accent-color: #16786e; width: 15px; height: 15px; }
+.app-version-force strong, .app-version-force small { display: block; }
+.app-version-force strong { color: #334a59; font-size: 11px; }
+.app-version-force small { color: #87949b; font-size: 9px; font-weight: 400; margin-top: 3px; }
+.app-version-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e7edef; padding: 14px 21px; }
+.app-version-form-footer span { color: #859199; font-size: 10px; }
+.app-version-form-footer .btn-primary { background: #176f67; }
+.app-version-form-footer .btn-primary:disabled { cursor: wait; opacity: .65; }
+.app-version-preview { padding: 19px; }
+.app-version-preview-top { display: flex; justify-content: space-between; color: #819097; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.app-version-live { color: #138274; }
+.app-version-preview h2 { margin-bottom: 16px; }
+.app-version-dialog-preview { border: 1px solid #e3e9eb; border-radius: 6px; padding: 17px; text-align: center; }
+.app-version-preview-mark { display: grid; place-items: center; width: 30px; height: 30px; margin: 0 auto 12px; border-radius: 8px; color: white; background: #176f67; font-weight: 800; }
+.app-version-dialog-preview h3 { color: #243a47; font-size: 13px; }
+.app-version-dialog-preview p { min-height: 34px; color: #75838b; font-size: 10px; line-height: 1.5; margin: 8px 0 13px; }
+.app-version-dialog-preview button { width: 100%; border: 0; border-radius: 4px; padding: 9px; color: #fff; background: #176f67; font-size: 10px; font-weight: 800; }
+.app-version-thresholds { margin-top: 18px; border-top: 1px solid #e9edef; }
+.app-version-thresholds div { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 11px 0; border-bottom: 1px solid #eef1f2; }
+.app-version-thresholds span { color: #78868d; font-size: 10px; }
+.app-version-thresholds strong { color: #334b57; font-size: 10px; }
+.app-version-thresholds b { margin-left: 5px; color: #ae6823; font-size: 9px; }
+.app-version-thresholds b.ok { color: #178473; }
+.app-version-feedback { padding: 10px 12px; border-radius: 5px; margin-bottom: 12px; font-size: 12px; }
+.app-version-feedback.error { background: #fff0ee; color: #a33f35; }
+.app-version-feedback.success { background: #e8f6f2; color: #147d73; }
+@media (max-width: 900px) { .app-version-layout { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .app-versions-header { align-items: flex-start; flex-direction: column; } .app-version-fields { grid-template-columns: 1fr; } .app-version-wide { grid-column: auto; } .app-version-form-footer { align-items: flex-start; flex-direction: column; } }

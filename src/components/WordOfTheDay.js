@@ -77,22 +77,52 @@ const getMonthRange = () => {
 };
 
 const formatDate = (value) => {
+  if (!value) return '—';
+
+  let date;
+
   if (Array.isArray(value)) {
     const [year, month, day] = value;
-    return [year, String(month).padStart(2, '0'), String(day).padStart(2, '0')].join('-');
+    date = new Date(year, month - 1, day);
+  } else {
+    date = new Date(String(value).slice(0, 10));
   }
-  if (!value) return '—';
-  return String(value).slice(0, 10);
+
+  if (isNaN(date.getTime())) return '—';
+
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 };
 
 const formatDateTime = (value) => {
   if (!value) return '—';
+
   if (Array.isArray(value)) {
-    const [year, month = 1, day = 1, hour = 0, minute = 0, second = 0] = value;
-    return new Date(year, month - 1, day, hour, minute, second).toLocaleString();
+    const [
+      year,
+      month = 1,
+      day = 1,
+      hour = 0,
+      minute = 0,
+      second = 0
+    ] = value;
+
+    return new Date(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      second
+    ).toLocaleString();
   }
+
   return new Date(value).toLocaleString();
 };
+
 
 function WordOfTheDay() {
   const [range, setRange] = useState(getMonthRange);

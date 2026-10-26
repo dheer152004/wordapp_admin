@@ -1,0 +1,33 @@
+.user-sessions-page { color: #192d43; }
+.user-sessions-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); padding: 4px 0 20px; margin-bottom: 18px; }
+.user-sessions-eyebrow { color: #147d73; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.user-sessions-header h1 { margin-top: 5px; font-size: 25px; }
+.user-sessions-header p:last-child { color: var(--muted); font-size: 12px; margin-top: 5px; }
+.user-sessions-filter { display: flex; align-items: center; gap: 9px; color: #71808a; font-size: 11px; font-weight: 700; }
+.user-sessions-filter select { min-width: 140px; border: 1px solid #d8e2e6; border-radius: 5px; padding: 8px 10px; color: #334b57; background: #fff; font: inherit; }
+.user-sessions-toolbar { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px; color: #78868d; font-size: 11px; }
+.user-sessions-toolbar button, .user-sessions-pagination button { border: 1px solid #d8e2e6; border-radius: 5px; background: #fff; color: #435967; padding: 7px 10px; cursor: pointer; font-size: 10px; font-weight: 700; }
+.user-sessions-toolbar button:disabled, .user-sessions-pagination button:disabled { cursor: not-allowed; opacity: .5; }
+.user-sessions-table-wrap { overflow-x: auto; border: 1px solid #dbe5e8; border-radius: 7px; background: #fff; }
+.user-sessions-table { width: 100%; min-width: 890px; border-collapse: collapse; }
+.user-sessions-table th { background: #f5f8f8; color: #71818a; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.user-sessions-table th, .user-sessions-table td { padding: 12px 13px; border-bottom: 1px solid #edf1f2; text-align: left; white-space: nowrap; }
+.user-sessions-table td { color: #50616b; font-size: 10px; }
+.user-sessions-table td strong, .user-sessions-table td small { display: block; }
+.user-sessions-table td strong { color: #314754; font-size: 11px; }
+.user-sessions-table td small { color: #89959b; font-size: 9px; margin-top: 4px; }
+.user-sessions-table tbody tr:last-child td { border-bottom: 0; }
+.user-sessions-empty { height: 104px; color: #87949b !important; text-align: center !important; }
+.user-session-status { display: inline-block; border-radius: 4px; padding: 5px 7px; background: #eef1f2; color: #69777e; font-size: 9px; font-weight: 800; }
+.user-session-status.active { background: #e7f5f1; color: #147d73; }
+.user-session-status.expired { background: #fff3e4; color: #a3621c; }
+.user-session-status.revoked { background: #fff0ee; color: #aa493f; }
+.user-session-action { text-align: right !important; }
+.user-session-action button { border: 1px solid #f0c5c0; border-radius: 4px; padding: 6px 8px; background: #fff; color: #a44137; cursor: pointer; font-size: 9px; font-weight: 700; }
+.user-session-action button:disabled { cursor: wait; opacity: .6; }
+.user-sessions-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 2px; color: #78868d; font-size: 10px; }
+.user-sessions-pagination div { display: flex; gap: 7px; }
+.user-sessions-feedback { padding: 10px 12px; border-radius: 5px; margin-bottom: 12px; font-size: 12px; }
+.user-sessions-feedback.error { background: #fff0ee; color: #a33f35; }
+.user-sessions-feedback.success { background: #e8f6f2; color: #147d73; }
+@media (max-width: 620px) { .user-sessions-header { align-items: flex-start; flex-direction: column; } .user-sessions-filter { width: 100%; justify-content: space-between; } }

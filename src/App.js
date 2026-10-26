@@ -16,6 +16,9 @@ import Languages from './components/Languages';
 import GrammarCategory from './components/GrammarCategory';
 import GrammarValues from './components/GrammarValues';
 import WordOfTheDay from './components/WordOfTheDay';
+import AppVersions from './components/AppVersions';
+import UserSessions from './components/UserSessions';
+import Badges from './components/Badges';
 import './App.css';
 
 function App() {
@@ -54,6 +57,9 @@ function App() {
               <NavLink to="/grammar-values">V <span>Grammar values</span></NavLink>
               <NavLink to="/quiz">✓ <span>Quiz management</span></NavLink>
               <NavLink to="/word-of-the-day">✦ <span>Word of the day</span></NavLink>
+              <NavLink to="/badges">🏅 <span>Badges</span></NavLink>
+              <NavLink to="/app-versions">↻ <span>App versions</span></NavLink>
+              <NavLink to="/user-sessions">◉ <span>User sessions</span></NavLink>
               {/* <NavLink to="/bulk-import">↥ <span>Bulk import</span></NavLink> */}
               <NavLink to="/users">♙ <span>Users</span></NavLink>
               <NavLink to="/reports">▥ <span>Reports</span></NavLink>
@@ -88,6 +94,9 @@ function App() {
             <Route path="/words" element={token ? <Words /> : <Navigate to="/login" />} />
             <Route path="/quiz" element={token ? <Quiz /> : <Navigate to="/login" />} />
             <Route path="/word-of-the-day" element={token ? <WordOfTheDay /> : <Navigate to="/login" />} />
+            <Route path="/badges" element={token ? <Badges /> : <Navigate to="/login" />} />
+            <Route path="/app-versions" element={token ? <AppVersions /> : <Navigate to="/login" />} />
+            <Route path="/user-sessions" element={token ? <UserSessions /> : <Navigate to="/login" />} />
             <Route path="/bulk-import" element={token ? <BulkImport /> : <Navigate to="/login" />} />
             <Route path="/profile-test" element={token ? <ProfileTest /> : <Navigate to="/login" />} />
             <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />

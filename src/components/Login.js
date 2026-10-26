@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-
-const API_BASE = (process.env.REACT_APP_API_BASE || '').replace(/\/$/, '');
+import { API_BASE } from '../services/api';
 
 // Lightweight shadCN-like UI shim (small set of components used here)
 function Button({ children, variant = 'default', ...props }) {
@@ -38,8 +37,8 @@ function Login({ onLogin }) {
     setError('');
 
     try {
-      const endpoint = role === 'ADMIN' ? '/api/auth/login-admin' : '/api/auth/login-editor';
-      const url = API_BASE ? `${API_BASE}${endpoint}` : endpoint;
+      const endpoint = role === 'ADMIN' ? '/auth/login-admin' : '/auth/login-editor';
+      const url = `${API_BASE}${endpoint}`;
       const res = await axios.post(url, {
         username,
         password

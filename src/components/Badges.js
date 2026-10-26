@@ -1,11 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import api from '../services/api';
 
-const badgeTypes = ['QUIZ', 'STREAK', 'COLLECTION', 'COMMUNITY', 'EVENT'];
+const badgeTypes = [
+  'QUIZ',
+  'QUIZ_MASTERY',
+  'STREAK',
+  'GENRE',
+  'WORD_COMPLETION',
+  'EXPERIENCE',
+  'LEVEL',
+  'COLLECTION',
+  'COMMUNITY',
+  'EVENT',
+];
 const badgeRarities = ['RARE', 'EPIC', 'LEGENDARY'];
 
 function Badges() {
   const [badges, setBadges] = useState([]);
+  const [genres, setGenres] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -18,6 +30,7 @@ function Badges() {
     hidden: false,
     active: true,
     displayOrder: 0,
+    genreId: '',
     image: null,
   });
 
@@ -41,6 +54,9 @@ function Badges() {
 
   useEffect(() => {
     fetchBadges();
+    api.get('/genres')
+      .then((response) => setGenres(response.data?.genres || response.data || []))
+      .catch((err) => setError(err.response?.data?.message || err.message || 'Failed to load genres'));
   }, []);
 
   const handleSubmit = async (e) => {
@@ -58,6 +74,7 @@ function Badges() {
         hidden: formData.hidden,
         active: formData.active,
         displayOrder: Number(formData.displayOrder) || 0,
+        genreId: formData.genreId ? Number(formData.genreId) : null,
       })], { type: 'application/json' }));
 
       if (formData.image) {
@@ -77,6 +94,7 @@ function Badges() {
         hidden: false,
         active: true,
         displayOrder: 0,
+        genreId: '',
         image: null,
       });
       await fetchBadges();
@@ -159,6 +177,19 @@ function Badges() {
                   {badgeRarities.map((rarity) => <option key={rarity} value={rarity}>{rarity}</option>)}
                 </select>
               </div>
+              <label style={{ display: 'grid', gap: 6 }}>
+                Genre
+                <select
+                  value={formData.genreId}
+                  onChange={(e) => setFormData({ ...formData, genreId: e.target.value })}
+                  style={inputStyle}
+                >
+                  <option value="">No genre</option>
+                  {genres.map((genre) => (
+                    <option key={genre.id} value={genre.id}>{genre.name}</option>
+                  ))}
+                </select>
+              </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <input
@@ -222,6 +253,7 @@ function Badges() {
                   <span style={{ fontSize: 12, color: '#64748b', background: '#eef2ff', padding: '6px 12px', borderRadius: 999 }}>#{badge.displayOrder ?? 0}</span>
                 </div>
                 <div style={{ marginTop: 10, color: '#475569', fontSize: 14 }}>{badge.description || '—'}</div>
+                {badge.genreName && <div style={{ marginTop: 8, color: '#475569', fontSize: 13 }}>Genre: {badge.genreName}</div>}
                 <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '6px 10px', borderRadius: 999, fontSize: 12 }}>Type: {badge.badgeType}</span>
                   <span style={{ background: '#fef3c7', color: '#92400e', padding: '6px 10px', borderRadius: 999, fontSize: 12 }}>Rarity: {badge.rarity}</span>

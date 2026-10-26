@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-// const API_BASE = 'https://klugbackend-cdfgbdepaebcdggv.centralindia-01.azurewebsites.net/api';
-const API_BASE = 'http://localhost:8082/api';
+const configuredApiOrigin = process.env.REACT_APP_API_BASE?.trim().replace(/\/+$/, '');
+const API_ORIGIN = configuredApiOrigin
+  ? (/^https?:\/\//i.test(configuredApiOrigin) ? configuredApiOrigin : `https://${configuredApiOrigin}`)
+  : '';
+export const API_BASE = `${API_ORIGIN}/api`;
 
 const api = axios.create({
   baseURL: API_BASE,
