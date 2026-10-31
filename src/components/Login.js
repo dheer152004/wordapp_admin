@@ -43,13 +43,12 @@ function Login({ onLogin }) {
         username,
         password
       }, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        withCredentials: true,
       });
 
       const data = res.data;
       if (data?.token) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user || { username }));
         if (onLogin) onLogin(data);
         navigate('/dashboard');
       } else {

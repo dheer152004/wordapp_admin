@@ -50,41 +50,40 @@ const extractWordObject = (data) => [
   data,
 ].find(value => value && typeof value === 'object' && !Array.isArray(value)) || null;
 
-const expandedFormConfig = {
-  ACRONYM: {
-    label: 'Expanded Form',
-    helper: 'The complete name represented by this acronym.',
-    example: 'NASA -> National Aeronautics and Space Administration',
+const createEmptyFormData = (languageId = '') => ({
+  languageId,
+  grammarValueIds: [],
+  word: '',
+  wordDetails: {
+    expandedForm: '',
+    usage: '',
+    etymology: '',
   },
-  INITIALISM: {
-    label: 'Expanded Form',
-    helper: 'The complete name represented by these initials.',
-    example: 'TCP -> Transmission Control Protocol',
-  },
-  ABBREVIATION: {
-    label: 'Expanded Form',
-    helper: 'The complete form of this abbreviation.',
-    example: 'approx. -> approximately',
-  },
-  CONTRACTION: {
-    label: 'Full Form',
-    helper: 'The original form before contraction.',
-    example: "can't -> cannot",
-  },
-  SHORTENED_WORD: {
-    label: 'Full Form',
-    helper: 'The complete form of this shortened word.',
-    example: 'ad -> advertisement',
-  },
-};
-
-const getExpandedFormConfig = (wordType) => expandedFormConfig[wordType] || null;
+  meaning: '',
+  categoryIds: [],
+  categoryDisplayOrders: {},
+  examples: [],
+  wordImage: null,
+  imageUrls: [],
+  videos: [],
+  audios: [],
+  description: '',
+  facts: [],
+  relatedWordIds: [],
+  alsoAppearsIn: [],
+  sourceAndCredits: {},
+  quizModes: [],
+});
 
 // ── Main Words Component ────────────────────────────────────────────────────
 function Words() {
   const [words, setWords] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryDirectory, setCategoryDirectory] = useState({});
+  const [languages, setLanguages] = useState([]);
+  const [grammarValues, setGrammarValues] = useState([]);
+  const [grammarOptionsLoading, setGrammarOptionsLoading] = useState(true);
+  const [grammarOptionsError, setGrammarOptionsError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingWord, setEditingWord] = useState(null);
@@ -100,26 +99,7 @@ function Words() {
   const [relatedWordResults, setRelatedWordResults] = useState([]);
   const [relatedWordSearchLoading, setRelatedWordSearchLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    word: '',
-    wordType: 'WORD',
-    expandedForm: '',
-    partOfSpeech: 'OTHER',
-    meaning: '',
-    categoryIds: [],
-    categoryDisplayOrders: {},
-    examples: [],
-    wordImage: null,
-    imageUrls: [],
-    videos: [],
-    audios: [],
-    description: '',
-    facts: [],
-    relatedWordIds: [],
-    alsoAppearsIn: [],
-    sourceAndCredits: {},
-    quizModes: [],
-  });
+  const [formData, setFormData] = useState(() => createEmptyFormData());
 
   // Image editor state
   const [rawImageFile, setRawImageFile] = useState(null);   // file going INTO editor
@@ -156,6 +136,33 @@ function Words() {
       }
     } catch (err) { console.error(err); }
   }, [setSelectedCategory]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchWordFormOptions = async () => {
+      setGrammarOptionsError('');
+      try {
+        const [languageResponse, grammarValueResponse] = await Promise.all([
+          api.get('/admin/languages'),
+          api.get('/admin/grammar-values'),
+        ]);
+        if (!active) return;
+        setLanguages(Array.isArray(languageResponse.data) ? languageResponse.data : []);
+        setGrammarValues(Array.isArray(grammarValueResponse.data) ? grammarValueResponse.data : []);
+      } catch (error) {
+        if (active) {
+          setGrammarOptionsError(
+            error.response?.data?.message || error.message || 'Failed to load languages and grammar values.'
+          );
+        }
+      } finally {
+        if (active) setGrammarOptionsLoading(false);
+      }
+    };
+
+    fetchWordFormOptions();
+    return () => { active = false; };
+  }, []);
 
   const fetchWords = useCallback(async () => {
     if (!selectedCategory) return;
@@ -339,26 +346,32 @@ function Words() {
   // ── Submit ──
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.languageId) {
+      alert('Please select a language.');
+      return;
+    }
     if (!formData.categoryIds?.length) {
       alert('Please select at least one category.');
       return;
     }
 
-    // Build payload following new schema
     const payload = {
+      languageId: Number(formData.languageId),
+      grammarValueIds: (formData.grammarValueIds || [])
+        .map(Number)
+        .filter(id => id && grammarValuesForLanguage.some(value => Number(value.id) === id)),
       word: formData.word,
-      wordType: formData.wordType,
-      expandedForm: getExpandedFormConfig(formData.wordType) ? (formData.expandedForm || null) : null,
-      partOfSpeech: formData.partOfSpeech,
       meaning: formData.meaning,
+      wordDetails: {
+        expandedForm: formData.wordDetails.expandedForm,
+        usage: formData.wordDetails.usage,
+        etymology: formData.wordDetails.etymology,
+      },
       description: formData.description || null,
       categories: (formData.categoryIds || [])
         .map(Number)
         .filter(Boolean)
-        .map(categoryId => ({
-          categoryId,
-          displayOrder: Number(formData.categoryDisplayOrders?.[categoryId]) || 10000,
-        })),
+        .map(categoryId => ({ categoryId })),
       images: [],
       videos: formData.videos || [],
       audios: formData.audios || [],
@@ -422,7 +435,7 @@ function Words() {
     setEditingWord(null);
     setCategorySearch('');
     setRelatedWordSearch('');
-    setFormData({ word: '', wordType: 'WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], categoryDisplayOrders: {}, examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
+    setFormData(createEmptyFormData());
     setCroppedFile(null);
     setCroppedPreview('');
     setRawImageFile(null);
@@ -475,10 +488,16 @@ function Words() {
     );
 
     return {
+      languageId: selectedWord.languageId ?? selectedWord.language?.id ?? '',
+      grammarValueIds: Array.isArray(selectedWord.grammarValueIds)
+        ? selectedWord.grammarValueIds.map(value => Number(value?.id ?? value)).filter(Boolean)
+        : [],
       word: selectedWord.word || selectedWord.name || selectedWord.title || '',
-      wordType: selectedWord.wordType || 'WORD',
-      expandedForm: getExpandedFormConfig(selectedWord.wordType) ? (selectedWord.expandedForm || '') : '',
-      partOfSpeech: selectedWord.partOfSpeech || 'OTHER',
+      wordDetails: {
+        expandedForm: selectedWord.wordDetails?.expandedForm || selectedWord.expandedForm || '',
+        usage: selectedWord.wordDetails?.usage || '',
+        etymology: selectedWord.wordDetails?.etymology || '',
+      },
       meaning: (selectedWord.meaning || selectedWord.definition || selectedWord.mean) ?? '',
       categoryIds,
       categoryDisplayOrders,
@@ -508,6 +527,11 @@ function Words() {
     }
     setShowModal(true);
   };
+
+  const grammarValuesForLanguage = grammarValues.filter((value) => (
+    String(value.languageId ?? value.grammarCategory?.languageId ?? '') === String(formData.languageId)
+    && value.isActive !== false
+  ));
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure?')) return;
@@ -624,7 +648,7 @@ function Words() {
   };
 
   const stepProgress = [
-    Boolean(formData.word.trim() && formData.wordType && formData.partOfSpeech && formData.meaning.trim() && formData.categoryIds.length),
+    Boolean(formData.languageId && formData.word.trim() && formData.meaning.trim() && formData.categoryIds.length),
     Boolean(formData.description.trim() || formData.examples.some(Boolean) || formData.facts.some(Boolean)),
     Boolean(croppedFile || formData.imageUrls.length || formData.videos.length || formData.audios.length),
     Boolean(formData.relatedWordIds.length || formData.alsoAppearsIn.length || Object.values(formData.sourceAndCredits).some(Boolean)),
@@ -655,7 +679,7 @@ function Words() {
           </button>
           <button className="btn btn-primary words-add-button" onClick={() => {
             setEditingWord(null);
-            setFormData({ word: '', wordType: 'WORD', expandedForm: '', partOfSpeech: 'OTHER', meaning: '', categoryIds: [], categoryDisplayOrders: {}, examples: [], wordImage: null, imageUrls: [], videos: [], audios: [], description: '', facts: [], relatedWordIds: [], alsoAppearsIn: [], sourceAndCredits: {}, quizModes: [] });
+            setFormData(createEmptyFormData(languages[0]?.id ? String(languages[0].id) : ''));
             setShowModal(true);
           }}>+ Add Word</button>
         </div>
@@ -711,7 +735,7 @@ function Words() {
               <div>
                 <span className="word-modal-kicker">Word library</span>
                 <h3>{editingWord ? 'Edit Word' : 'Add New Word'}</h3>
-                <p>Define the word, its meaning, categories, and learning content.</p>
+                <p>Select a language, then define its word, meaning, and learning content.</p>
               </div>
               <button type="button" className="word-modal-close" onClick={closeModal}>×</button>
             </div>
@@ -726,51 +750,80 @@ function Words() {
               ))}
             </div>
             <form onSubmit={handleSubmit} className="word-form">
+              {grammarOptionsError && (
+                <div className="word-form-options-error" role="alert">
+                  Unable to load language and grammar options: {grammarOptionsError}
+                </div>
+              )}
               <section className="word-form-section word-basic-section">
                 <div className="word-section-heading"><span className="section-icon">▣</span><div><strong>Basic information</strong><small>Start with the core details about this word.</small></div></div>
+              <label className="word-field"><span>Language <em>*</em></span>
+                <select value={formData.languageId} disabled={grammarOptionsLoading} onChange={event => setFormData(current => ({
+                  ...current,
+                  languageId: event.target.value,
+                  grammarValueIds: [],
+                }))} required>
+                  <option value="">{grammarOptionsLoading ? 'Loading languages...' : 'Select a language'}</option>
+                  {languages.filter(language => language.isActive !== false).map(language => (
+                    <option key={language.id} value={String(language.id)}>{language.name} (ID: {language.id})</option>
+                  ))}
+                </select>
+              </label>
+              <div className="word-field grammar-values-field">
+                <span>Grammar values</span>
+                {grammarOptionsLoading ? (
+                  <small>Loading grammar values...</small>
+                ) : !formData.languageId ? (
+                  <small>Select a language to see its grammar values.</small>
+                ) : grammarValuesForLanguage.length ? (
+                  <div className="grammar-value-options">
+                    {grammarValuesForLanguage.map(value => {
+                      const valueId = Number(value.id);
+                      const selected = formData.grammarValueIds.includes(valueId);
+                      return (
+                        <label key={value.id}>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => setFormData(current => ({
+                              ...current,
+                              grammarValueIds: selected
+                                ? current.grammarValueIds.filter(id => id !== valueId)
+                                : [...current.grammarValueIds, valueId],
+                            }))}
+                          />
+                          {value.displayName || value.name} (ID: {value.id})
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <small>No grammar values are available for this language.</small>
+                )}
+              </div>
               <label className="word-field"><span>Word <em>*</em></span><input type="text" placeholder="Enter a word or term" value={formData.word}
                 onChange={e => setFormData({ ...formData, word: e.target.value })} required />
               </label>
-              <label className="word-field"><span>Word type <em>*</em></span><select value={formData.wordType} onChange={e => {
-                const wordType = e.target.value;
-                setFormData(prev => ({
-                  ...prev,
-                  wordType,
-                  expandedForm: getExpandedFormConfig(wordType) ? prev.expandedForm : '',
-                }));
-              }} required>
-                <option value="ACRONYM">ACRONYM</option>
-                <option value="WORD">WORD</option>
-                <option value="ABBREVIATION">ABBREVIATION</option>
-                <option value="CONTRACTION">CONTRACTION</option>
-                <option value="SHORTENED_WORD">SHORTENED_WORD</option>
-                <option value="BLEND">BLEND</option>
-                <option value="COMPOUND_WORD">COMPOUND_WORD</option>
-                <option value="IDIOM">IDIOM</option>
-                <option value="PHRASAL_VERB">PHRASAL_VERB</option>
-                <option value="PROVERB">PROVERB</option>
-              </select></label>
-              {getExpandedFormConfig(formData.wordType) && (
-                <label className="word-field expanded-form-field"><span>{getExpandedFormConfig(formData.wordType).label} <small>(optional)</small></span><input type="text" placeholder={getExpandedFormConfig(formData.wordType).example} value={formData.expandedForm}
-                  onChange={e => setFormData({ ...formData, expandedForm: e.target.value })} /><small className="field-helper">{getExpandedFormConfig(formData.wordType).helper} Example: {getExpandedFormConfig(formData.wordType).example}</small>
-                </label>
-              )}
-              <label className="word-field"><span>Part of speech <em>*</em></span><select value={formData.partOfSpeech} onChange={e => setFormData({ ...formData, partOfSpeech: e.target.value })} required>
-                <option value="VERB">VERB</option>
-                <option value="NOUN">NOUN</option>
-                <option value="ADJECTIVE">ADJECTIVE</option>
-                <option value="HELPING_VERB">HELPING_VERB</option>
-                <option value="ADVERB">ADVERB</option>
-                <option value="PRONOUN">PRONOUN</option>
-                <option value="PREPOSITION">PREPOSITION</option>
-                <option value="CONJUNCTION">CONJUNCTION</option>
-                <option value="INTERJECTION">INTERJECTION</option>
-                <option value="DETERMINER">DETERMINER</option>
-                <option value="ARTICLE">ARTICLE</option>
-                <option value="OTHER">OTHER</option>
-              </select></label>
               <label className="word-field word-meaning-field"><span>Meaning <em>*</em></span><textarea placeholder="Write a short and clear meaning" value={formData.meaning}
                 onChange={e => setFormData({ ...formData, meaning: e.target.value })} rows="3" required />
+              </label>
+              <label className="word-field"><span>Expanded form</span><input type="text" value={formData.wordDetails.expandedForm}
+                onChange={event => setFormData(current => ({
+                  ...current,
+                  wordDetails: { ...current.wordDetails, expandedForm: event.target.value },
+                }))} placeholder="Transmission Control Protocol" />
+              </label>
+              <label className="word-field word-meaning-field"><span>Usage</span><textarea value={formData.wordDetails.usage}
+                onChange={event => setFormData(current => ({
+                  ...current,
+                  wordDetails: { ...current.wordDetails, usage: event.target.value },
+                }))} rows="2" placeholder="How this word is used" />
+              </label>
+              <label className="word-field word-meaning-field"><span>Etymology</span><textarea value={formData.wordDetails.etymology}
+                onChange={event => setFormData(current => ({
+                  ...current,
+                  wordDetails: { ...current.wordDetails, etymology: event.target.value },
+                }))} rows="2" placeholder="Origin and history of the word" />
               </label>
               </section>
               <fieldset style={{ margin: '0 0 8px', padding: 12, border: '1px solid #d1d5db', borderRadius: 6 }}>
