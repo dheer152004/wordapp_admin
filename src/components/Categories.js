@@ -487,7 +487,7 @@ function Categories() {
   useEffect(() => {
     fetchCategories();
     fetchGenres();
-  }, [fetchCategories]);
+  }, [fetchCategories, fetchGenres]);
 
   // Clipboard paste
   useEffect(() => {
