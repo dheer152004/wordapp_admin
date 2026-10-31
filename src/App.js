@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Categories from './components/Categories';
@@ -19,54 +19,19 @@ import WordOfTheDay from './components/WordOfTheDay';
 import AppVersions from './components/AppVersions';
 import UserSessions from './components/UserSessions';
 import Badges from './components/Badges';
-import api, { refreshAccessToken, setAccessToken } from './services/api';
 import './App.css';
 
 function App() {
-  const [token, setToken] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [logoutError, setLogoutError] = useState('');
-
-  useEffect(() => {
-    let active = true;
-
-    refreshAccessToken()
-      .then((refreshedToken) => {
-        if (active) setToken(refreshedToken);
-      })
-      .catch((error) => {
-        setAccessToken(null);
-        if (error.response?.status !== 401 && error.response?.status !== 403) {
-          console.error('Unable to restore the session', error);
-        }
-      })
-      .finally(() => {
-        if (active) setAuthReady(true);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const handleLogin = (userData) => {
-    setAccessToken(userData.token);
     setToken(userData.token);
     setUser(userData);
   };
 
-  const handleLogout = async () => {
-    setLogoutError('');
-    try {
-      await api.post('/auth/logout');
-    } catch (error) {
-      console.error('Unable to log out', error);
-      setLogoutError(error.response?.data?.message || 'Unable to log out. Please try again.');
-      return;
-    }
-
-    setAccessToken(null);
+  const handleLogout = () => {
+    localStorage.removeItem('token');
     setToken(null);
     setUser(null);
   };
@@ -102,7 +67,6 @@ function App() {
             </nav>
             <div className="sidebar-footer">
               <div className="sidebar-help">Need help?<small>Check the documentation or contact support.</small></div>
-              {logoutError && <div role="alert">{logoutError}</div>}
               <button onClick={handleLogout} className="sidebar-logout">Log out</button>
             </div>
           </aside>
@@ -115,7 +79,7 @@ function App() {
             </header>
           )}
           <main className="container">
-          {!authReady ? <div role="status">Restoring session...</div> : <Routes>
+          <Routes>
             <Route path="/login" element={<Login onLogin={handleLogin} />} />
             <Route path="/dashboard" element={token ? <Dashboard /> : <Navigate to="/login" />} />
             <Route path="/" element={token ? <Categories /> : <Navigate to="/login" />} />
@@ -136,7 +100,7 @@ function App() {
             <Route path="/bulk-import" element={token ? <BulkImport /> : <Navigate to="/login" />} />
             <Route path="/profile-test" element={token ? <ProfileTest /> : <Navigate to="/login" />} />
             <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
-          </Routes>}
+          </Routes>
           </main>
         </div>
       </div>
