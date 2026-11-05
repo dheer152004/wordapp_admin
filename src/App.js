@@ -19,6 +19,7 @@ import GrammarValues from './components/GrammarValues';
 import WordOfTheDay from './components/WordOfTheDay';
 import AppVersions from './components/AppVersions';
 import UserSessions from './components/UserSessions';
+import UserRequestCategories from './components/UserRequestCategories';
 import Badges from './components/Badges';
 import './App.css';
 
@@ -62,6 +63,7 @@ function App() {
               <NavLink to="/badges">🏅 <span>Badges</span></NavLink>
               <NavLink to="/app-versions">↻ <span>App versions</span></NavLink>
               <NavLink to="/user-sessions">◉ <span>User sessions</span></NavLink>
+              <NavLink to="/user-request-categories">✉ <span>User requests</span></NavLink>
               {/* <NavLink to="/bulk-import">↥ <span>Bulk import</span></NavLink> */}
               <NavLink to="/users">♙ <span>Users</span></NavLink>
               <NavLink to="/reports">▥ <span>Reports</span></NavLink>
@@ -100,6 +102,7 @@ function App() {
             <Route path="/badges" element={token ? <Badges /> : <Navigate to="/login" />} />
             <Route path="/app-versions" element={token ? <AppVersions /> : <Navigate to="/login" />} />
             <Route path="/user-sessions" element={token ? <UserSessions /> : <Navigate to="/login" />} />
+            <Route path="/user-request-categories" element={token ? <UserRequestCategories /> : <Navigate to="/login" />} />
             <Route path="/bulk-import" element={token ? <BulkImport /> : <Navigate to="/login" />} />
             <Route path="/profile-test" element={token ? <ProfileTest /> : <Navigate to="/login" />} />
             <Route path="*" element={<Navigate to={token ? "/dashboard" : "/login"} />} />
