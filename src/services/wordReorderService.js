@@ -1,4 +1,5 @@
 import api from './api';
+import { invalidateWordCache } from './wordCacheService';
 
 export async function reorderWordDisplayOrder(wordId, categoryId, displayOrder) {
   if (
@@ -14,10 +15,12 @@ export async function reorderWordDisplayOrder(wordId, categoryId, displayOrder) 
     categoryId: Number(categoryId),
     displayOrder,
   });
+  invalidateWordCache();
   return response.data;
 }
 
 export async function rebalanceWordDisplayOrder() {
   const response = await api.post('/admin/words/rebalance-display-order');
+  invalidateWordCache();
   return response.data;
 }

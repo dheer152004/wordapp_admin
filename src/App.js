@@ -5,6 +5,7 @@ import Categories from './components/Categories';
 import AdminCategories from './components/AdminCategories';
 import Genre from './components/Genre';
 import Words from './components/Words';
+import WordDrafts from './components/WordDrafts';
 import Quiz from './components/Quiz';
 import BulkImport from './components/BulkImport';
 import ProfileTest from './components/ProfileTest';
@@ -49,6 +50,7 @@ function App() {
             <nav className="sidebar-nav">
               <NavLink to="/dashboard" end>⌂ <span>Dashboard</span></NavLink>
               <NavLink to="/words">▣ <span>Words</span></NavLink>
+              <NavLink to="/word-drafts">▤ <span>Drafts</span></NavLink>
               <NavLink to="/" end>▦ <span>Categories</span></NavLink>
               {/* <NavLink to="/admin/categories">▦ <span>Manage categories</span></NavLink> */}
               <NavLink to="/genres">◈ <span>Genres</span></NavLink>
@@ -92,6 +94,7 @@ function App() {
             <Route path="/admin/categories" element={token ? <AdminCategories /> : <Navigate to="/login" />} />
             <Route path="/legal-documents" element={token ? <LegalDocuments /> : <Navigate to="/login" />} />
             <Route path="/words" element={token ? <Words /> : <Navigate to="/login" />} />
+            <Route path="/word-drafts" element={token ? <WordDrafts /> : <Navigate to="/login" />} />
             <Route path="/quiz" element={token ? <Quiz /> : <Navigate to="/login" />} />
             <Route path="/word-of-the-day" element={token ? <WordOfTheDay /> : <Navigate to="/login" />} />
             <Route path="/badges" element={token ? <Badges /> : <Navigate to="/login" />} />

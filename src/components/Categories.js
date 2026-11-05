@@ -1,7 +1,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../services/api';
 import { usePersistentState } from '../hooks/usePersistentState';
+import { fetchCategoryPage, invalidateCategoryCache } from '../services/categoryService';
 
 const AGE_RATING_OPTIONS = [
   { value: 'ALL', label: 'ALL' },
@@ -427,7 +430,16 @@ function ImageEditor({ file, onConfirm, onCancel }) {
 
 // ── Main Categories Component ───────────────────────────────────────────────
 function Categories() {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
+  const [categoryPagination, setCategoryPagination] = useState({
+    currentPage: 0,
+    totalPages: 1,
+    totalCategories: 0,
+    pageSize: 10,
+    hasMore: false,
+  });
+  const [currentPage, setCurrentPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -457,22 +469,30 @@ function Categories() {
   const fileInputRef = useRef(null);
 
   // Fetch categories
-  const fetchCategories = useCallback(async () => {
+  const fetchCategories = useCallback(async (page = currentPage) => {
     setLoading(true);
     setError(null);
 
     try {
-      const res = await api.get('/categories');
-      setCategories(res.data);
+      let result = await fetchCategoryPage(page);
+      if (page >= result.totalPages && page > 0) {
+        const lastPage = result.totalPages - 1;
+        setCurrentPage(lastPage);
+        result = await fetchCategoryPage(lastPage);
+      }
+      setCategories(result.categories);
+      setCategoryPagination(result);
     } catch (err) {
+      setCategories([]);
       setError(
         err.response?.data?.message ||
+          err.message ||
           'Failed to fetch categories'
       );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage]);
 
   const fetchGenres = useCallback(async () => {
     try {
@@ -487,7 +507,7 @@ function Categories() {
   useEffect(() => {
     fetchCategories();
     fetchGenres();
-  }, [fetchCategories]);
+  }, [fetchCategories, fetchGenres]);
 
   // Clipboard paste
   useEffect(() => {
@@ -646,6 +666,7 @@ function Categories() {
         alert('Category created');
       }
 
+      invalidateCategoryCache();
       closeModal();
       fetchCategories();
     } catch (err) {
@@ -690,6 +711,7 @@ function Categories() {
 
       alert('Category deleted');
 
+      invalidateCategoryCache();
       fetchCategories();
     } catch (err) {
       alert(
@@ -719,7 +741,7 @@ function Categories() {
       {/* Header */}
       <div className="card-header">
         <h2>
-          Categories ({categories.length})
+          Categories ({categoryPagination.totalCategories})
         </h2>
 
         <button
@@ -763,9 +785,11 @@ function Categories() {
 
               <p>{category.description}</p>
 
+              <h4>
               <span className="word-count ">
                 Genre: {category.genreName || category.genreId || 'Unassigned'}
               </span>
+              </h4>
 
               {/* <span className="word-count">
                 Age Rating: {category.ageRating || 'ALL'}
@@ -785,8 +809,18 @@ function Categories() {
                   marginTop: 8,
                   display: 'flex',
                   gap: 6,
+                  flexWrap: 'wrap',
                 }}
               >
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() => navigate('/words', {
+                    state: { categoryId: category.id, openCreateWord: true },
+                  })}
+                >
+                  Add Word
+                </button>
                 <button
                   className="btn btn-sm btn-primary"
                   onClick={() => {
@@ -820,6 +854,45 @@ function Categories() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div
+        aria-label="Category pagination"
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 12,
+          margin: '20px 0',
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setCurrentPage(page => Math.max(0, page - 1))}
+          disabled={loading || categoryPagination.currentPage <= 0}
+          aria-label="Previous page"
+          title="Previous page"
+        >
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+        <span aria-live="polite">
+          Page {categoryPagination.currentPage + 1} of {categoryPagination.totalPages}
+          {' · '}
+          {categoryPagination.totalCategories} total categories
+          {categoryPagination.pageSize ? ` · ${categoryPagination.pageSize} per page` : ''}
+        </span>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setCurrentPage(page => page + 1)}
+          disabled={loading || !categoryPagination.hasMore}
+          aria-label="Next page"
+          title="Next page"
+        >
+          <ChevronRight size={18} aria-hidden="true" />
+        </button>
       </div>
 
       {/* Modal */}

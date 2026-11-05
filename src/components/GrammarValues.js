@@ -18,6 +18,7 @@ function GrammarValues() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingValue, setEditingValue] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
@@ -113,6 +114,14 @@ function GrammarValues() {
   const categoriesForLanguage = categories.filter((category) => (
     !formData.languageId || String(category.languageId) === String(formData.languageId)
   ));
+  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
+  const filteredValues = values.filter((value) => [
+    value.name,
+    value.displayName,
+    value.description,
+    value.grammarCategoryName,
+    value.languageName,
+  ].some(field => String(field || '').toLocaleLowerCase().includes(normalizedSearchQuery)));
 
   const handleLanguageChange = (languageId) => {
     const matchingCategories = categories.filter((category) => String(category.languageId) === String(languageId));
@@ -205,14 +214,32 @@ function GrammarValues() {
 
       <div className="card languages-card">
         <div className="languages-card-heading">
-          <div><h2>Grammar values</h2><p>{values.length} value{values.length === 1 ? '' : 's'} configured</p></div>
+          <div>
+            <h2>Grammar values</h2>
+            <p>
+              {normalizedSearchQuery
+                ? `${filteredValues.length} of ${values.length} values`
+                : `${values.length} value${values.length === 1 ? '' : 's'} configured`}
+            </p>
+          </div>
           <button className="btn btn-sm" type="button" onClick={fetchValues} disabled={loading}>Refresh</button>
         </div>
-        {loading ? <div className="loading">Loading grammar values...</div> : values.length === 0 ? <div className="language-empty">No grammar values configured yet.</div> : (
+        <label style={{ display: 'block', margin: '0 0 16px' }}>
+          <span className="visually-hidden">Search grammar values</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={event => setSearchQuery(event.target.value)}
+            placeholder="Search values by name, category, language, or description..."
+            aria-label="Search grammar values"
+            style={{ width: '100%', maxWidth: 480, padding: '10px 12px' }}
+          />
+        </label>
+        {loading ? <div className="loading">Loading grammar values...</div> : values.length === 0 ? <div className="language-empty">No grammar values configured yet.</div> : filteredValues.length === 0 ? <div className="language-empty">No grammar values match your search.</div> : (
           <div className="languages-table-wrap">
             <table className="languages-table">
               <thead><tr><th>Order</th><th>Category</th><th>Language</th><th>Name</th><th>Description</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>{values.map((value) => (
+              <tbody>{filteredValues.map((value) => (
                 <tr key={value.id}>
                   <td>{value.displayOrder}</td>
                   <td><span className="language-code">{value.grammarCategoryName || value.grammarCategoryId}</span></td>

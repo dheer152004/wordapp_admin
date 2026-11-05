@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { fetchAdminCategories, invalidateCategoryCache } from '../services/categoryService';
 
 function AdminCategories() {
   const [categories, setCategories] = useState([]);
@@ -15,8 +16,7 @@ function AdminCategories() {
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get('/admin/categories');
-      setCategories(response.data);
+      setCategories(await fetchAdminCategories());
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -47,6 +47,7 @@ function AdminCategories() {
         });
         alert('Category created successfully');
       }
+      invalidateCategoryCache();
       setShowModal(false);
       setFormData({ name: '', description: '', image: null });
       setEditingCategory(null);
@@ -61,6 +62,7 @@ function AdminCategories() {
       try {
         await api.delete(`/admin/categories/${id}`);
         alert('Category deleted successfully');
+        invalidateCategoryCache();
         fetchCategories();
       } catch (error) {
         alert('Error: ' + (error.response?.data?.message || error.message));
@@ -71,6 +73,7 @@ function AdminCategories() {
   const toggleStatus = async (id) => {
     try {
       await api.patch(`/admin/categories/${id}/toggle-status`);
+      invalidateCategoryCache();
       fetchCategories();
     } catch (error) {
       alert('Error toggling status');

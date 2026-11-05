@@ -1,7 +1,7 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
-const target = process.env.REACT_APP_PROXY || 'https://app.nroq.in';
-// const target = process.env.REACT_APP_PROXY || 'http://localhost:8082';
+// const target = process.env.REACT_APP_API_BASE || 'https://app.nroq.in';
+const target = process.env.REACT_APP_API_BASE || 'http://localhost:8082';
 
 module.exports = function (app) {
   app.use(

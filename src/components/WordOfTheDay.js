@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import api from '../services/api';
+import { fetchAdminWord, searchWords } from '../services/wordCacheService';
 import WordCard from './WordCard';
 
 const extractWordList = (data) => [
@@ -176,10 +177,8 @@ function WordOfTheDay() {
       setWordSearchLoading(true);
       setWordSearchError('');
       try {
-        const response = await api.get('/words/search', {
-          params: { q: query, page: 0, size: 10 },
-        });
-        if (active) setWordResults(extractWordList(response.data));
+        const responseData = await searchWords(query, 0, 10);
+        if (active) setWordResults(extractWordList(responseData));
       } catch (err) {
         if (active) {
           setWordResults([]);
@@ -269,8 +268,7 @@ function WordOfTheDay() {
     setViewRaw(null);
     setViewShowRaw(false);
     try {
-      const response = await api.get(`/admin/words/${wordId}`);
-      const body = response.data;
+      const body = await fetchAdminWord(wordId);
       setViewRaw(body);
       const extracted =
         (body?.data && typeof body.data === 'object' && body.data) ||

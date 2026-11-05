@@ -12,20 +12,25 @@ import {
 } from '@dnd-kit/sortable';
 import { Alert, CircularProgress, Snackbar } from '@mui/material';
 import api from '../services/api';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useWordReorder } from '../hooks/useWordReorder';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { rebalanceWordDisplayOrder } from '../services/wordReorderService';
+import {
+  fetchAllCategories,
+  invalidateCategoryCache,
+  searchCategories,
+} from '../services/categoryService';
+import { deleteWordDraft, getWordDraft, saveWordDraft } from '../services/wordDraftService';
+import {
+  fetchAdminWord,
+  fetchWordsByCategory,
+  invalidateWordCache,
+  searchWords,
+} from '../services/wordCacheService';
 import ImageEditor from './ImageEditor';
 import SortableWordRow from './SortableWordRow';
 import WordCard from './WordCard';
-
-const extractCategoryList = (data) => [
-  data,
-  data?.categories,
-  data?.content,
-  data?.data,
-].find(Array.isArray) || [];
 
 const extractWordList = (data) => [
   data,
@@ -50,6 +55,119 @@ const extractWordObject = (data) => [
   data,
 ].find(value => value && typeof value === 'object' && !Array.isArray(value)) || null;
 
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === 'string') resolve(reader.result);
+    else reject(new Error('Could not read the selected image.'));
+  };
+  reader.onerror = () => reject(reader.error || new Error('Could not read the selected image.'));
+  reader.readAsDataURL(file);
+});
+
+const createEmptyMediaCredits = () => ({
+  author: '',
+  platform: '',
+  creditUrl: '',
+  license: '',
+  licenseUrl: '',
+  attributionRequired: false,
+  attributionText: '',
+});
+
+const mediaPlatformPresets = {
+  Pixabay: {
+    platform: 'Pixabay',
+    license: 'Pixabay Content License',
+    licenseUrl: 'https://pixabay.com/service/license-summary/',
+  },
+  Pexels: {
+    platform: 'Pexels',
+    license: 'Pexels License',
+    licenseUrl: 'https://www.pexels.com/license/',
+  },
+  Unsplash: {
+    platform: 'Unsplash',
+    license: 'Unsplash License',
+    licenseUrl: 'https://unsplash.com/license',
+  },
+};
+
+const mediaCreditFields = [
+  ['author', 'Author'],
+  ['creditUrl', 'Credit URL'],
+  ['license', 'License'],
+  ['licenseUrl', 'License URL'],
+  ['attributionText', 'Attribution text'],
+];
+
+const MediaCreditsFields = ({ credits, onChange }) => {
+  const isPresetPlatform = Object.prototype.hasOwnProperty.call(mediaPlatformPresets, credits?.platform);
+
+  const handlePlatformChange = (event) => {
+    const preset = mediaPlatformPresets[event.target.value];
+    if (preset) {
+      Object.entries(preset).forEach(([key, value]) => onChange(key, value));
+      return;
+    }
+
+    onChange('platform', '');
+    onChange('license', '');
+    onChange('licenseUrl', '');
+  };
+
+  return (
+    <fieldset style={{ border: '1px solid #d1d5db', borderRadius: 6, padding: 8, margin: '6px 0' }}>
+      <legend style={{ padding: '0 6px', fontSize: 12, fontWeight: 600 }}>Media credits</legend>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 6 }}>
+        <label style={{ display: 'grid', gap: 3, fontSize: 12 }}>
+          Platform
+          <select
+            value={isPresetPlatform ? credits.platform : 'custom'}
+            onChange={handlePlatformChange}
+            style={{ padding: 6 }}
+          >
+            <option value="custom">Other (enter manually)</option>
+            {Object.keys(mediaPlatformPresets).map(platform => (
+              <option key={platform} value={platform}>{platform}</option>
+            ))}
+          </select>
+        </label>
+        {!isPresetPlatform && (
+          <label style={{ display: 'grid', gap: 3, fontSize: 12 }}>
+            Custom platform
+            <input
+              type="text"
+              value={credits?.platform || ''}
+              onChange={event => onChange('platform', event.target.value)}
+              style={{ padding: 6 }}
+            />
+          </label>
+        )}
+        {mediaCreditFields.map(([key, label]) => (
+          <label key={key} style={{ display: 'grid', gap: 3, fontSize: 12 }}>
+            {label}
+            <input
+              type="text"
+              value={credits?.[key] || ''}
+              onChange={event => onChange(key, event.target.value)}
+              style={{ padding: 6 }}
+            />
+          </label>
+        ))}
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12 }}>
+        <input
+          type="checkbox"
+          checked={Boolean(credits?.attributionRequired)}
+          onChange={event => onChange('attributionRequired', event.target.checked)}
+        />
+        Attribution required
+      </label>
+    </fieldset>
+  );
+};
+
 const createEmptyFormData = (languageId = '') => ({
   languageId,
   grammarValueIds: [],
@@ -62,8 +180,10 @@ const createEmptyFormData = (languageId = '') => ({
   meaning: '',
   categoryIds: [],
   categoryDisplayOrders: {},
+  redirectCategory: '',
   examples: [],
   wordImage: null,
+  wordImageCredits: createEmptyMediaCredits(),
   imageUrls: [],
   videos: [],
   audios: [],
@@ -71,12 +191,12 @@ const createEmptyFormData = (languageId = '') => ({
   facts: [],
   relatedWordIds: [],
   alsoAppearsIn: [],
-  sourceAndCredits: {},
   quizModes: [],
 });
 
 // ── Main Words Component ────────────────────────────────────────────────────
 function Words() {
+  const location = useLocation();
   const [words, setWords] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryDirectory, setCategoryDirectory] = useState({});
@@ -87,12 +207,16 @@ function Words() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingWord, setEditingWord] = useState(null);
+  const [activeDraftId, setActiveDraftId] = useState(null);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewWord, setViewWord] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewRaw, setViewRaw] = useState(null);
   const [viewShowRaw, setViewShowRaw] = useState(false);
   const [selectedCategory, setSelectedCategory] = usePersistentState('wordgame.words.selectedCategory', '');
+  const [grammarValueSearch, setGrammarValueSearch] = useState('');
+  const [grammarValuesOpen, setGrammarValuesOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   const [categorySearchLoading, setCategorySearchLoading] = useState(false);
   const [relatedWordSearch, setRelatedWordSearch] = useState('');
@@ -100,6 +224,12 @@ function Words() {
   const [relatedWordSearchLoading, setRelatedWordSearchLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [formData, setFormData] = useState(() => createEmptyFormData());
+  const handledCategoryNavigation = useRef(null);
+  const handledDraftNavigation = useRef(null);
+  const [selectionPresets, setSelectionPresets] = usePersistentState('wordgame.words.selectionPresets', []);
+  const [selectionPresetName, setSelectionPresetName] = useState('');
+  const [selectedSelectionPresetId, setSelectedSelectionPresetId] = useState('');
+  const [selectionPresetError, setSelectionPresetError] = useState('');
 
   // Image editor state
   const [rawImageFile, setRawImageFile] = useState(null);   // file going INTO editor
@@ -107,7 +237,56 @@ function Words() {
   const [croppedPreview, setCroppedPreview] = useState(''); // object URL for display
   const [showEditor, setShowEditor] = useState(false);
 
+  useEffect(() => {
+    const categoryId = location.state?.categoryId;
+    if (categoryId == null || handledCategoryNavigation.current === location.key) return;
+
+    handledCategoryNavigation.current = location.key;
+    setSelectedCategory(String(categoryId));
+    if (location.state.openCreateWord) {
+      setEditingWord(null);
+      setActiveDraftId(null);
+      setFormData(createEmptyFormData(languages[0]?.id ? String(languages[0].id) : ''));
+      setShowModal(true);
+    }
+  }, [location.key, location.state, languages, setSelectedCategory]);
+
+  useEffect(() => {
+    const draftId = location.state?.draftId;
+    if (!draftId || handledDraftNavigation.current === location.key) return;
+
+    handledDraftNavigation.current = location.key;
+    try {
+      const draft = getWordDraft(draftId);
+      if (!draft) {
+        alert('This draft could not be found in this browser.');
+        return;
+      }
+
+      setEditingWord(null);
+      setActiveDraftId(draft.id);
+      setFormData({
+        ...createEmptyFormData(draft.formData?.languageId || ''),
+        ...draft.formData,
+        wordDetails: {
+          ...createEmptyFormData().wordDetails,
+          ...draft.formData?.wordDetails,
+        },
+      });
+      if (draft.formData?.categoryIds?.length) {
+        setSelectedCategory(String(draft.formData.categoryIds[0]));
+      }
+      setCroppedFile(null);
+      setCroppedPreview('');
+      setRawImageFile(null);
+      setShowModal(true);
+    } catch (error) {
+      alert(`Could not load this draft: ${error.message}`);
+    }
+  }, [location.key, location.state, setSelectedCategory]);
+
   const dropZoneRef = useRef(null);
+  const grammarValuesRef = useRef(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const sortedWords = useMemo(
     () => [...words].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0)),
@@ -124,8 +303,7 @@ function Words() {
   // ── Fetch helpers ──
   const fetchCategories = useCallback(async () => {
     try {
-      const res = await api.get('/categories');
-      const categoryList = extractCategoryList(res.data);
+      const categoryList = await fetchAllCategories();
       setCategories(categoryList);
       setCategoryDirectory(previous => ({
         ...previous,
@@ -168,8 +346,7 @@ function Words() {
     if (!selectedCategory) return;
     setLoading(true);
     try {
-      const res = await api.get(`/words/category/${encodeURIComponent(selectedCategory)}?page=0&size=100`);
-      const responseData = res.data;
+      const responseData = await fetchWordsByCategory(selectedCategory, 0, 100);
       const wordList = [
         responseData,
         responseData?.words,
@@ -197,10 +374,8 @@ function Words() {
     const timer = setTimeout(async () => {
       setRelatedWordSearchLoading(true);
       try {
-        const res = await api.get('/words/search', {
-          params: { q: relatedWordSearch.trim(), page: 0, size: 10 },
-        });
-        if (active) setRelatedWordResults(extractWordList(res.data));
+        const responseData = await searchWords(relatedWordSearch, 0, 10);
+        if (active) setRelatedWordResults(extractWordList(responseData));
       } catch (err) {
         if (active) setRelatedWordResults([]);
         console.error('Failed to search related words', err);
@@ -215,6 +390,19 @@ function Words() {
     };
   }, [relatedWordSearch, showModal]);
   useEffect(() => {
+    if (!grammarValuesOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (!grammarValuesRef.current?.contains(event.target)) {
+        setGrammarValuesOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [grammarValuesOpen]);
+  useEffect(() => {
+    if (!showModal) setGrammarValuesOpen(false);
+  }, [showModal]);
+  useEffect(() => {
     if (!showModal) return undefined;
     if (!categorySearch.trim()) {
       fetchCategories();
@@ -225,11 +413,8 @@ function Words() {
     const timer = setTimeout(async () => {
       setCategorySearchLoading(true);
       try {
-        const res = await api.get('/categories/search', {
-          params: { q: categorySearch.trim(), page: 0, size: 10 },
-        });
         if (active) {
-          const categoryList = extractCategoryList(res.data);
+          const categoryList = await searchCategories(categorySearch, 0, 10);
           setCategories(categoryList);
           setCategoryDirectory(previous => ({
             ...previous,
@@ -314,7 +499,23 @@ function Words() {
   const removeCroppedImage = () => {
     setCroppedFile(null);
     setCroppedPreview('');
-    setFormData(prev => ({ ...prev, wordImage: null }));
+    setFormData(prev => ({ ...prev, wordImage: null, wordImageCredits: createEmptyMediaCredits() }));
+  };
+
+  const updateMediaCredits = (field, index, creditField, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].map((item, itemIndex) => itemIndex === index
+        ? { ...item, credits: { ...createEmptyMediaCredits(), ...item.credits, [creditField]: value } }
+        : item),
+    }));
+  };
+
+  const updateMediaItem = (field, index, updates) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item),
+    }));
   };
 
   const addUploadedMedia = async (event, field, urlKey) => {
@@ -329,7 +530,10 @@ function Words() {
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      setFormData(prev => ({ ...prev, [field]: [...(prev[field] || []), { [urlKey]: dataUrl }] }));
+      setFormData(prev => ({
+        ...prev,
+        [field]: [...(prev[field] || []), { [urlKey]: dataUrl, credits: createEmptyMediaCredits() }],
+      }));
     } catch (error) {
       console.error(`Failed to read ${field} file`, error);
     }
@@ -339,7 +543,10 @@ function Words() {
     const input = document.getElementById(inputId);
     const value = input?.value.trim();
     if (!value) return;
-    setFormData(prev => ({ ...prev, [field]: [...(prev[field] || []), { [urlKey]: value }] }));
+    setFormData(prev => ({
+      ...prev,
+      [field]: [...(prev[field] || []), { [urlKey]: value, credits: createEmptyMediaCredits() }],
+    }));
     input.value = '';
   };
 
@@ -363,18 +570,49 @@ function Words() {
       word: formData.word,
       meaning: formData.meaning,
       wordDetails: {
-        expandedForm: formData.wordDetails.expandedForm,
-        usage: formData.wordDetails.usage,
-        etymology: formData.wordDetails.etymology,
+        expandedForm: formData.wordDetails.expandedForm || null,
+        usage: formData.wordDetails.usage || null,
+        etymology: formData.wordDetails.etymology || null,
       },
       description: formData.description || null,
+      redirectCategory: formData.redirectCategory ? Number(formData.redirectCategory) : null,
       categories: (formData.categoryIds || [])
         .map(Number)
         .filter(Boolean)
-        .map(categoryId => ({ categoryId })),
-      images: [],
-      videos: formData.videos || [],
-      audios: formData.audios || [],
+        .map(categoryId => {
+          const displayOrder = formData.categoryDisplayOrders?.[categoryId];
+          return {
+            categoryId,
+            displayOrder: displayOrder == null || displayOrder === '' ? null : Number(displayOrder),
+          };
+        }),
+      images: (formData.imageUrls || [])
+        .map(image => ({
+          imageUrl: typeof image === 'string' ? image : image?.imageUrl,
+          credits: {
+            ...createEmptyMediaCredits(),
+            ...(typeof image === 'object' && image !== null ? image.credits : {}),
+          },
+        }))
+        .filter(image => typeof image.imageUrl === 'string' && image.imageUrl.trim()),
+      videos: (formData.videos || [])
+        .map(video => ({
+          videoUrl: typeof video === 'string' ? video : video?.videoUrl,
+          credits: {
+            ...createEmptyMediaCredits(),
+            ...(typeof video === 'object' && video !== null ? video.credits : {}),
+          },
+        }))
+        .filter(video => typeof video.videoUrl === 'string' && video.videoUrl.trim()),
+      audios: (formData.audios || [])
+        .map(audio => ({
+          audioUrl: typeof audio === 'string' ? audio : audio?.audioUrl,
+          credits: {
+            ...createEmptyMediaCredits(),
+            ...(typeof audio === 'object' && audio !== null ? audio.credits : {}),
+          },
+        }))
+        .filter(audio => typeof audio.audioUrl === 'string' && audio.audioUrl.trim()),
       facts: formData.facts || [],
       examples: formData.examples || [],
       relatedWordIds: (formData.relatedWordIds || []).map(item => {
@@ -389,9 +627,6 @@ function Words() {
       quizModes: formData.quizModes || [],
     };
 
-    // attach source&credits using bracket notation
-    payload['source&credits'] = formData.sourceAndCredits || {};
-
     const imageToUpload = croppedFile || formData.wordImage;
 
     try {
@@ -405,15 +640,13 @@ function Words() {
 
         try {
           const dataUrl = await toDataUrl(imageToUpload);
-          payload.images = [{ imageUrl: dataUrl }];
+          payload.images.unshift({
+            imageUrl: dataUrl,
+            credits: { ...createEmptyMediaCredits(), ...formData.wordImageCredits },
+          });
         } catch (err) {
           console.error('Failed to convert image to data URL', err);
-          payload.images = [];
         }
-      } else if (formData.imageUrls && formData.imageUrls.length > 0) {
-        payload.images = formData.imageUrls
-          .map(imageUrl => ({ imageUrl }))
-          .filter(image => image.imageUrl);
       }
 
       if (editingWord) {
@@ -423,6 +656,16 @@ function Words() {
         await api.post('/admin/words', payload, { headers: { 'Content-Type': 'application/json' } });
         alert('Word created successfully');
       }
+      if (activeDraftId) {
+        try {
+          deleteWordDraft(activeDraftId);
+        } catch (draftError) {
+          alert(`Word was saved, but its local draft could not be removed: ${draftError.message}`);
+        }
+        setActiveDraftId(null);
+      }
+      invalidateWordCache();
+      invalidateCategoryCache();
       closeModal();
       fetchWords();
     } catch (error) {
@@ -433,12 +676,52 @@ function Words() {
   const closeModal = () => {
     setShowModal(false);
     setEditingWord(null);
+    setActiveDraftId(null);
     setCategorySearch('');
     setRelatedWordSearch('');
     setFormData(createEmptyFormData());
     setCroppedFile(null);
     setCroppedPreview('');
     setRawImageFile(null);
+  };
+
+  const handleSaveDraft = async () => {
+    if (!formData.word.trim()) {
+      alert('Enter a word before saving it as a draft.');
+      return;
+    }
+
+    setSavingDraft(true);
+    try {
+      const draftFormData = {
+        ...formData,
+        wordImage: null,
+        imageUrls: [...(formData.imageUrls || [])],
+      };
+      const imageToSave = croppedFile || formData.wordImage;
+      if (imageToSave) {
+        const imageUrl = await fileToDataUrl(imageToSave);
+        draftFormData.imageUrls.push({
+          imageUrl,
+          credits: { ...createEmptyMediaCredits(), ...formData.wordImageCredits },
+        });
+      }
+
+      const savedDraft = saveWordDraft({
+        id: activeDraftId || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        formData: draftFormData,
+      });
+      setActiveDraftId(savedDraft.id);
+      setFormData(draftFormData);
+      setCroppedFile(null);
+      setCroppedPreview('');
+      setRawImageFile(null);
+      alert('Draft saved in this browser.');
+    } catch (error) {
+      alert(`Could not save draft: ${error.message}`);
+    } finally {
+      setSavingDraft(false);
+    }
   };
 
   const normalizeWordForEdit = (selectedWord) => {
@@ -448,17 +731,26 @@ function Words() {
         ? selectedWord.examplesList
         : [];
     const facts = Array.isArray(selectedWord.facts) ? selectedWord.facts : [];
-    const imageUrls = Array.isArray(selectedWord.imageUrls)
-      ? selectedWord.imageUrls.map(image => typeof image === 'string' ? image : image?.imageUrl).filter(Boolean)
-      : Array.isArray(selectedWord.images)
-        ? selectedWord.images.map(image => typeof image === 'string' ? image : image?.imageUrl).filter(Boolean)
-        : selectedWord.image
-          ? [selectedWord.image]
+    const imageEntries = Array.isArray(selectedWord.images) && selectedWord.images.length
+      ? selectedWord.images
+      : Array.isArray(selectedWord.imageUrls)
+        ? selectedWord.imageUrls
+        : [];
+    const imageUrls = imageEntries.length
+      ? imageEntries.map(image => typeof image === 'string'
+        ? { imageUrl: image, credits: createEmptyMediaCredits() }
+        : { ...image, credits: { ...createEmptyMediaCredits(), ...image?.credits } }).filter(image => image.imageUrl)
+      : selectedWord.image
+          ? [{ imageUrl: selectedWord.image, credits: createEmptyMediaCredits() }]
           : selectedWord.wordImageUrl
-            ? [selectedWord.wordImageUrl]
+            ? [{ imageUrl: selectedWord.wordImageUrl, credits: createEmptyMediaCredits() }]
             : [];
-        const videos = Array.isArray(selectedWord.videos) ? selectedWord.videos : [];
-        const audios = Array.isArray(selectedWord.audios) ? selectedWord.audios : [];
+    const videos = Array.isArray(selectedWord.videos)
+      ? selectedWord.videos.map(video => ({ ...video, credits: { ...createEmptyMediaCredits(), ...video.credits } }))
+      : [];
+    const audios = Array.isArray(selectedWord.audios)
+      ? selectedWord.audios.map(audio => ({ ...audio, credits: { ...createEmptyMediaCredits(), ...audio.credits } }))
+      : [];
     const relatedWordIds = Array.isArray(selectedWord.relatedWordIds)
       ? selectedWord.relatedWordIds.filter((item) => item != null)
       : Array.isArray(selectedWord.related)
@@ -482,7 +774,7 @@ function Words() {
       categoryEntries
         .map(category => {
           const categoryId = Number(category?.categoryId ?? category?.id ?? category);
-          return categoryId ? [categoryId, Number(category?.displayOrder) || 10000] : null;
+          return categoryId ? [categoryId, category?.displayOrder ?? null] : null;
         })
         .filter(Boolean)
     );
@@ -501,8 +793,10 @@ function Words() {
       meaning: (selectedWord.meaning || selectedWord.definition || selectedWord.mean) ?? '',
       categoryIds,
       categoryDisplayOrders,
+      redirectCategory: selectedWord.redirectCategory?.id ?? selectedWord.redirectCategory ?? '',
       examples,
       wordImage: null,
+      wordImageCredits: createEmptyMediaCredits(),
       imageUrls,
       videos,
       audios,
@@ -510,16 +804,16 @@ function Words() {
       facts,
       relatedWordIds,
       alsoAppearsIn,
-      sourceAndCredits: selectedWord['source&credits'] || selectedWord.sourceAndCredits || selectedWord.source || {},
       quizModes: Array.isArray(selectedWord.quizModes) ? selectedWord.quizModes : [],
     };
   };
 
   const handleEdit = async (selectedWord) => {
     setEditingWord(selectedWord);
+    setActiveDraftId(null);
     try {
-      const response = await api.get(`/admin/words/${selectedWord.id}`);
-      const fullWord = extractWordObject(response.data) || selectedWord;
+      const responseData = await fetchAdminWord(selectedWord.id);
+      const fullWord = extractWordObject(responseData) || selectedWord;
       setFormData(normalizeWordForEdit(fullWord));
     } catch (error) {
       console.error('Failed to load word for editing', error);
@@ -532,12 +826,96 @@ function Words() {
     String(value.languageId ?? value.grammarCategory?.languageId ?? '') === String(formData.languageId)
     && value.isActive !== false
   ));
+  const normalizedGrammarValueSearch = grammarValueSearch.trim().toLocaleLowerCase();
+  const filteredGrammarValues = grammarValuesForLanguage.filter(value => [
+    value.displayName,
+    value.name,
+    value.id,
+    value.grammarCategoryName,
+    value.grammarCategory?.displayName,
+    value.grammarCategory?.name,
+  ].some(field => String(field ?? '').toLocaleLowerCase().includes(normalizedGrammarValueSearch)));
+  const savedSelectionPresets = Array.isArray(selectionPresets) ? selectionPresets.slice(0, 3) : [];
+
+  const saveSelectionPreset = () => {
+    const name = selectionPresetName.trim();
+    if (!name) {
+      setSelectionPresetError('Enter a name for this selection.');
+      return;
+    }
+
+    const grammarValueIds = formData.grammarValueIds.map(Number).filter(Boolean);
+    const categoryIds = formData.categoryIds.map(Number).filter(Boolean);
+    if (!grammarValueIds.length && !categoryIds.length) {
+      setSelectionPresetError('Select at least one grammar value or category to save.');
+      return;
+    }
+
+    const existingPreset = savedSelectionPresets.find(
+      preset => preset.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+    );
+    if (!existingPreset && savedSelectionPresets.length >= 3) {
+      setSelectionPresetError('You can save up to 3 selections. Delete one before adding another.');
+      return;
+    }
+
+    const preset = {
+      id: existingPreset?.id || `${Date.now()}`,
+      name,
+      languageId: formData.languageId,
+      grammarValueIds,
+      categoryIds,
+      categoryDisplayOrders: Object.fromEntries(
+        categoryIds.map(categoryId => [
+          categoryId,
+          formData.categoryDisplayOrders?.[categoryId] ?? null,
+        ])
+      ),
+    };
+
+    setSelectionPresets(current => {
+      const currentPresets = Array.isArray(current) ? current.slice(0, 3) : [];
+      const existingIndex = currentPresets.findIndex(item => item.id === preset.id);
+      if (existingIndex >= 0) {
+        return currentPresets.map((item, index) => index === existingIndex ? preset : item);
+      }
+      return currentPresets.length < 3 ? [...currentPresets, preset] : currentPresets;
+    });
+    setSelectedSelectionPresetId(preset.id);
+    setSelectionPresetName('');
+    setSelectionPresetError('');
+  };
+
+  const applySelectionPreset = (presetId) => {
+    setSelectedSelectionPresetId(presetId);
+    const preset = savedSelectionPresets.find(item => item.id === presetId);
+    if (!preset) return;
+
+    setFormData(current => ({
+      ...current,
+      languageId: preset.languageId || current.languageId,
+      grammarValueIds: Array.isArray(preset.grammarValueIds) ? preset.grammarValueIds : [],
+      categoryIds: Array.isArray(preset.categoryIds) ? preset.categoryIds : [],
+      categoryDisplayOrders: preset.categoryDisplayOrders || {},
+    }));
+    setSelectionPresetError('');
+  };
+
+  const deleteSelectionPreset = () => {
+    if (!selectedSelectionPresetId) return;
+    setSelectionPresets(current => (
+      Array.isArray(current) ? current.filter(preset => preset.id !== selectedSelectionPresetId) : []
+    ));
+    setSelectedSelectionPresetId('');
+  };
 
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure?')) return;
     try {
       await api.delete(`/admin/words/${id}`);
       alert('Word deleted successfully');
+      invalidateWordCache();
+      invalidateCategoryCache();
       fetchWords();
     } catch (error) {
       alert('Error: ' + (error.response?.data?.message || error.message));
@@ -565,9 +943,9 @@ function Words() {
     setViewWord(null);
     try {
       console.debug('[Words] handleView: fetching word id=', id);
-      const res = await api.get(`/admin/words/${id}`);
+      const responseData = await fetchAdminWord(id);
       // store raw response for debugging
-      const body = res.data;
+      const body = responseData;
       console.debug('[Words] handleView: raw response:', body);
       setViewRaw(body);
       setViewShowRaw(false);
@@ -651,7 +1029,7 @@ function Words() {
     Boolean(formData.languageId && formData.word.trim() && formData.meaning.trim() && formData.categoryIds.length),
     Boolean(formData.description.trim() || formData.examples.some(Boolean) || formData.facts.some(Boolean)),
     Boolean(croppedFile || formData.imageUrls.length || formData.videos.length || formData.audios.length),
-    Boolean(formData.relatedWordIds.length || formData.alsoAppearsIn.length || Object.values(formData.sourceAndCredits).some(Boolean)),
+    Boolean(formData.relatedWordIds.length || formData.alsoAppearsIn.length || formData.quizModes.length),
   ];
   const activeStep = stepProgress.findIndex(completed => !completed);
   const currentStep = activeStep === -1 ? stepProgress.length - 1 : activeStep;
@@ -679,6 +1057,7 @@ function Words() {
           </button>
           <button className="btn btn-primary words-add-button" onClick={() => {
             setEditingWord(null);
+            setActiveDraftId(null);
             setFormData(createEmptyFormData(languages[0]?.id ? String(languages[0].id) : ''));
             setShowModal(true);
           }}>+ Add Word</button>
@@ -769,36 +1148,78 @@ function Words() {
                   ))}
                 </select>
               </label>
-              <div className="word-field grammar-values-field">
+              <div className="word-field grammar-values-field" ref={grammarValuesRef}>
                 <span>Grammar values</span>
                 {grammarOptionsLoading ? (
                   <small>Loading grammar values...</small>
                 ) : !formData.languageId ? (
                   <small>Select a language to see its grammar values.</small>
                 ) : grammarValuesForLanguage.length ? (
-                  <div className="grammar-value-options">
-                    {grammarValuesForLanguage.map(value => {
-                      const valueId = Number(value.id);
-                      const selected = formData.grammarValueIds.includes(valueId);
+                  <>
+                    <input
+                      type="search"
+                      value={grammarValueSearch}
+                      onFocus={() => setGrammarValuesOpen(true)}
+                      onClick={() => setGrammarValuesOpen(true)}
+                      onChange={event => {
+                        setGrammarValueSearch(event.target.value);
+                        setGrammarValuesOpen(true);
+                      }}
+                      placeholder="Search grammar values..."
+                      aria-label="Search grammar values"
+                      style={{ width: '100%', padding: 8, margin: '6px 0' }}
+                    />
+                    {grammarValuesOpen && filteredGrammarValues.length ? (
+                      <div className="grammar-value-options" id="grammar-value-options">
+                        {filteredGrammarValues.map(value => {
+                          const valueId = Number(value.id);
+                          const selected = formData.grammarValueIds.includes(valueId);
+                          return (
+                            <label key={value.id}>
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => setFormData(current => ({
+                                  ...current,
+                                  grammarValueIds: selected
+                                    ? current.grammarValueIds.filter(id => id !== valueId)
+                                    : [...current.grammarValueIds, valueId],
+                                }))}
+                              />
+                              {value.displayName || value.name} (ID: {value.id})
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : grammarValuesOpen ? (
+                      <small>No grammar values match your search.</small>
+                    ) : null}
+                  </>
+                ) : (
+                  <small>No grammar values are available for this language.</small>
+                )}
+                {formData.grammarValueIds.length > 0 && (
+                  <div className="grammar-selected-chips" aria-label="Selected grammar values">
+                    {formData.grammarValueIds.map(valueId => {
+                      const grammarValue = grammarValues.find(value => Number(value.id) === Number(valueId));
+                      const displayName = grammarValue?.displayName || grammarValue?.name || `Grammar value ${valueId}`;
                       return (
-                        <label key={value.id}>
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            onChange={() => setFormData(current => ({
+                        <span className="grammar-selected-chip" key={valueId}>
+                          {displayName}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${displayName}`}
+                            onClick={() => setFormData(current => ({
                               ...current,
-                              grammarValueIds: selected
-                                ? current.grammarValueIds.filter(id => id !== valueId)
-                                : [...current.grammarValueIds, valueId],
+                              grammarValueIds: current.grammarValueIds.filter(id => Number(id) !== Number(valueId)),
                             }))}
-                          />
-                          {value.displayName || value.name} (ID: {value.id})
-                        </label>
+                          >
+                            ×
+                          </button>
+                        </span>
                       );
                     })}
                   </div>
-                ) : (
-                  <small>No grammar values are available for this language.</small>
                 )}
               </div>
               <label className="word-field"><span>Word <em>*</em></span><input type="text" placeholder="Enter a word or term" value={formData.word}
@@ -824,6 +1245,14 @@ function Words() {
                   ...current,
                   wordDetails: { ...current.wordDetails, etymology: event.target.value },
                 }))} rows="2" placeholder="Origin and history of the word" />
+              </label>
+              <label className="word-field"><span>Redirect category ID</span><input
+                type="number"
+                min="1"
+                value={formData.redirectCategory}
+                onChange={event => setFormData(current => ({ ...current, redirectCategory: event.target.value }))}
+                placeholder="Optional"
+              />
               </label>
               </section>
               <fieldset style={{ margin: '0 0 8px', padding: 12, border: '1px solid #d1d5db', borderRadius: 6 }}>
@@ -866,6 +1295,31 @@ function Words() {
                     })}
                   </div>
                 )}
+                {formData.categoryIds.length > 0 && (
+                  <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+                    {formData.categoryIds.map(categoryId => {
+                      const category = categoryDirectory[categoryId] || categories.find(item => Number(item.id) === categoryId);
+                      return (
+                        <label key={categoryId} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                          {category?.name || `Category ${categoryId}`} display order
+                          <input
+                            type="number"
+                            value={formData.categoryDisplayOrders?.[categoryId] ?? ''}
+                            onChange={event => setFormData(prev => ({
+                              ...prev,
+                              categoryDisplayOrders: {
+                                ...prev.categoryDisplayOrders,
+                                [categoryId]: event.target.value === '' ? null : Number(event.target.value),
+                              },
+                            }))}
+                            placeholder="None"
+                            style={{ width: 110, padding: 6 }}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
                 {categorySearchLoading ? (
                   <div className="category-search-status">Searching categories...</div>
                 ) : categories.length > 0 ? (
@@ -886,7 +1340,7 @@ function Words() {
                                 : [...prev.categoryIds, categoryId],
                               categoryDisplayOrders: selected
                                 ? prev.categoryDisplayOrders
-                                : { ...prev.categoryDisplayOrders, [categoryId]: Number(cat.displayOrder) || 10000 },
+                                : { ...prev.categoryDisplayOrders, [categoryId]: cat.displayOrder ?? null },
                             }))}
                           />
                           <span>{cat.name}</span>
@@ -904,6 +1358,58 @@ function Words() {
                   {formData.categoryIds.length > 0
                     ? `${formData.categoryIds.length} categor${formData.categoryIds.length === 1 ? 'y' : 'ies'} selected`
                     : 'Select at least one category'}
+                </div>
+                <div className="word-form-section" style={{ margin: '12px 0 0', padding: 8 }}>
+                  <div className="word-section-heading">
+                    <span className="section-icon">▣</span>
+                    <div>
+                      <strong>Saved grammar and category selections</strong>
+                      <small>Save up to 3 combinations in this browser and apply one to a word.</small>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                    <select
+                      value={selectedSelectionPresetId}
+                      onChange={event => applySelectionPreset(event.target.value)}
+                      aria-label="Apply a saved grammar and category selection"
+                      style={{ flex: '1 1 220px', padding: 8 }}
+                    >
+                      <option value="">Select a saved selection...</option>
+                      {savedSelectionPresets.map(preset => (
+                        <option key={preset.id} value={preset.id}>{preset.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={deleteSelectionPreset}
+                      disabled={!selectedSelectionPresetId}
+                    >
+                      Delete selected
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    <input
+                      type="text"
+                      value={selectionPresetName}
+                      onChange={event => {
+                        setSelectionPresetName(event.target.value);
+                        setSelectionPresetError('');
+                      }}
+                      placeholder="Name this selection"
+                      aria-label="Saved selection name"
+                      maxLength={60}
+                      style={{ flex: '1 1 220px', padding: 8 }}
+                    />
+                    <button type="button" className="btn btn-primary" onClick={saveSelectionPreset}>
+                      Save current selection ({savedSelectionPresets.length}/3)
+                    </button>
+                  </div>
+                  {selectionPresetError && (
+                    <small role="alert" style={{ display: 'block', color: '#b91c1c', marginTop: 6 }}>
+                      {selectionPresetError}
+                    </small>
+                  )}
                 </div>
               </fieldset>
 
@@ -1043,12 +1549,36 @@ function Words() {
               <div className="word-form-section word-image-urls-section" style={{ marginBottom: 8 }}>
                 <div className="word-section-heading"><span className="section-icon">▧</span><div><strong>Images</strong><small>Add images to make the word more engaging.</small></div></div>
                 <label style={{ display: 'block', marginBottom: 6 }}>Image URLs</label>
-                {(formData.imageUrls || []).map((u, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-                    <input type="text" value={u} onChange={e => { const updated = [...formData.imageUrls]; updated[i] = e.target.value; setFormData({ ...formData, imageUrls: updated }); }} style={{ flex: 1, padding: 6 }} />
-                    <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, imageUrls: formData.imageUrls.filter((_, j) => j !== i) })}>&#x2715;</button>
+                {(formData.imageUrls || []).map((image, i) => (
+                  <div key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <input
+                        type="text"
+                        value={image.imageUrl}
+                        onChange={event => updateMediaItem('imageUrls', i, { imageUrl: event.target.value })}
+                        style={{ flex: 1, padding: 6 }}
+                        aria-label={`Image ${i + 1} URL`}
+                      />
+                      <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData(prev => ({
+                        ...prev,
+                        imageUrls: prev.imageUrls.filter((_, j) => j !== i),
+                      }))}>&#x2715;</button>
+                    </div>
+                    <MediaCreditsFields
+                      credits={image.credits}
+                      onChange={(key, value) => updateMediaCredits('imageUrls', i, key, value)}
+                    />
                   </div>
                 ))}
+                {croppedPreview && (
+                  <MediaCreditsFields
+                    credits={formData.wordImageCredits}
+                    onChange={(key, value) => setFormData(prev => ({
+                      ...prev,
+                      wordImageCredits: { ...prev.wordImageCredits, [key]: value },
+                    }))}
+                  />
+                )}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                   <input type="text" placeholder="Add image URL" id="newImageUrl" style={{ flex: 1, padding: 6 }} />
                   <button type="button" style={styles.btnAddExample} onClick={() => {
@@ -1056,7 +1586,10 @@ function Words() {
                     if (!el) return;
                     const v = el.value.trim();
                     if (!v) return;
-                    setFormData({ ...formData, imageUrls: [...(formData.imageUrls||[]), v] });
+                    setFormData(prev => ({
+                      ...prev,
+                      imageUrls: [...(prev.imageUrls || []), { imageUrl: v, credits: createEmptyMediaCredits() }],
+                    }));
                     el.value = '';
                   }}>Add</button>
                   {croppedPreview && (
@@ -1070,7 +1603,15 @@ function Words() {
                       });
                       try {
                         const dataUrl = await toDataUrl(croppedFile);
-                        setFormData({ ...formData, imageUrls: [...(formData.imageUrls||[]), dataUrl] });
+                        setFormData(prev => ({
+                          ...prev,
+                          imageUrls: [...(prev.imageUrls || []), {
+                            imageUrl: dataUrl,
+                            credits: { ...createEmptyMediaCredits(), ...prev.wordImageCredits },
+                          }],
+                          wordImage: null,
+                          wordImageCredits: createEmptyMediaCredits(),
+                        }));
                         setCroppedFile(null);
                         setCroppedPreview('');
                       } catch (err) { console.error(err); }
@@ -1083,14 +1624,19 @@ function Words() {
               <div className="word-form-section word-video-section" style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', marginBottom: 6 }}>Videos</label>
                 {(formData.videos || []).map((item, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-                    <video src={item.videoUrl} controls style={{ width: 120, maxHeight: 70 }} />
-                    <input type="text" value={item.videoUrl} onChange={e => {
-                      const updated = [...formData.videos];
-                      updated[i] = { videoUrl: e.target.value };
-                      setFormData({ ...formData, videos: updated });
-                    }} style={{ flex: 1, padding: 6 }} />
-                    <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, videos: formData.videos.filter((_, j) => j !== i) })}>&#x2715;</button>
+                  <div key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <video src={item.videoUrl} controls style={{ width: 120, maxHeight: 70 }} />
+                      <input type="text" value={item.videoUrl} onChange={event => updateMediaItem('videos', i, { videoUrl: event.target.value })} style={{ flex: 1, padding: 6 }} />
+                      <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData(prev => ({
+                        ...prev,
+                        videos: prev.videos.filter((_, j) => j !== i),
+                      }))}>&#x2715;</button>
+                    </div>
+                    <MediaCreditsFields
+                      credits={item.credits}
+                      onChange={(key, value) => updateMediaCredits('videos', i, key, value)}
+                    />
                   </div>
                 ))}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -1107,14 +1653,19 @@ function Words() {
               <div className="word-form-section word-audio-section" style={{ marginBottom: 8 }}>
                 <label style={{ display: 'block', marginBottom: 6 }}>Audios</label>
                 {(formData.audios || []).map((item, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-                    <audio src={item.audioUrl} controls style={{ width: 220 }} />
-                    <input type="text" value={item.audioUrl} onChange={e => {
-                      const updated = [...formData.audios];
-                      updated[i] = { audioUrl: e.target.value };
-                      setFormData({ ...formData, audios: updated });
-                    }} style={{ flex: 1, padding: 6 }} />
-                    <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, audios: formData.audios.filter((_, j) => j !== i) })}>&#x2715;</button>
+                  <div key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <audio src={item.audioUrl} controls style={{ width: 220 }} />
+                      <input type="text" value={item.audioUrl} onChange={event => updateMediaItem('audios', i, { audioUrl: event.target.value })} style={{ flex: 1, padding: 6 }} />
+                      <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData(prev => ({
+                        ...prev,
+                        audios: prev.audios.filter((_, j) => j !== i),
+                      }))}>&#x2715;</button>
+                    </div>
+                    <MediaCreditsFields
+                      credits={item.credits}
+                      onChange={(key, value) => updateMediaCredits('audios', i, key, value)}
+                    />
                   </div>
                 ))}
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -1221,20 +1772,14 @@ function Words() {
                 </div>
               </div>
 
-              {/* ── Source & Credits ── */}
-              <div className="word-form-section word-credits-section" style={{ marginBottom: 8 }}>
-                <div className="word-section-heading"><span className="section-icon">▤</span><div><strong>Source &amp; Credits</strong><small>Give credit to the source of this information.</small></div></div>
-                <input type="text" placeholder="Author" value={formData.sourceAndCredits?.author || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), author: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
-                <input type="text" placeholder="Platform" value={formData.sourceAndCredits?.platform || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), platform: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
-                <input type="text" placeholder="URL" value={formData.sourceAndCredits?.url || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), url: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
-                <input type="text" placeholder="Type" value={formData.sourceAndCredits?.type || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), type: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
-                <input type="text" placeholder="Source" value={formData.sourceAndCredits?.source || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), source: e.target.value } })} style={{ width: '100%', padding: 6, marginBottom: 6 }} />
-                <input type="text" placeholder="Licences" value={formData.sourceAndCredits?.licences || ''} onChange={e => setFormData({ ...formData, sourceAndCredits: { ...(formData.sourceAndCredits||{}), licences: e.target.value } })} style={{ width: '100%', padding: 6 }} />
-              </div>
-
               <div className="word-form-actions">
               <button type="button" className="btn word-cancel-button" onClick={closeModal}>Cancel</button>
-              <button type="submit" className="btn btn-primary">{editingWord ? 'Save Changes' : 'Save Word'}</button>
+              <button type="button" className="btn" onClick={handleSaveDraft} disabled={savingDraft}>
+                {savingDraft ? 'Saving draft...' : activeDraftId ? 'Update Draft' : 'Save Draft'}
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={savingDraft}>
+                {editingWord ? 'Save Changes' : 'Publish Word'}
+              </button>
               </div>
             </form>
           </div>
