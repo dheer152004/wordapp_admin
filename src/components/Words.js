@@ -55,6 +55,11 @@ const extractWordObject = (data) => [
   data,
 ].find(value => value && typeof value === 'object' && !Array.isArray(value)) || null;
 
+const normalizeGrammarLabel = (value) => String(value ?? '')
+  .trim()
+  .toLocaleLowerCase()
+  .replace(/[\s_-]+/g, '');
+
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => {
@@ -194,6 +199,19 @@ const createEmptyFormData = (languageId = '') => ({
   quizModes: [],
 });
 
+const AutoResizeTextarea = ({ value, onChange, ...props }) => {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, [value]);
+
+  return <textarea {...props} ref={textareaRef} value={value} onChange={onChange} rows={1} />;
+};
+
 // ── Main Words Component ────────────────────────────────────────────────────
 function Words() {
   const location = useLocation();
@@ -212,8 +230,6 @@ function Words() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewWord, setViewWord] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
-  const [viewRaw, setViewRaw] = useState(null);
-  const [viewShowRaw, setViewShowRaw] = useState(false);
   const [selectedCategory, setSelectedCategory] = usePersistentState('wordgame.words.selectedCategory', '');
   const [grammarValueSearch, setGrammarValueSearch] = useState('');
   const [grammarValuesOpen, setGrammarValuesOpen] = useState(false);
@@ -724,7 +740,7 @@ function Words() {
     }
   };
 
-  const normalizeWordForEdit = (selectedWord) => {
+  const normalizeWordForEdit = (selectedWord, availableGrammarValues = grammarValues) => {
     const examples = Array.isArray(selectedWord.examples)
       ? selectedWord.examples
       : Array.isArray(selectedWord.examplesList)
@@ -746,10 +762,16 @@ function Words() {
             ? [{ imageUrl: selectedWord.wordImageUrl, credits: createEmptyMediaCredits() }]
             : [];
     const videos = Array.isArray(selectedWord.videos)
-      ? selectedWord.videos.map(video => ({ ...video, credits: { ...createEmptyMediaCredits(), ...video.credits } }))
+      ? selectedWord.videos.map(video => ({
+        ...(typeof video === 'string' ? { videoUrl: video } : video),
+        credits: { ...createEmptyMediaCredits(), ...(typeof video === 'object' && video !== null ? video.credits : {}) },
+      }))
       : [];
     const audios = Array.isArray(selectedWord.audios)
-      ? selectedWord.audios.map(audio => ({ ...audio, credits: { ...createEmptyMediaCredits(), ...audio.credits } }))
+      ? selectedWord.audios.map(audio => ({
+        ...(typeof audio === 'string' ? { audioUrl: audio } : audio),
+        credits: { ...createEmptyMediaCredits(), ...(typeof audio === 'object' && audio !== null ? audio.credits : {}) },
+      }))
       : [];
     const relatedWordIds = Array.isArray(selectedWord.relatedWordIds)
       ? selectedWord.relatedWordIds.filter((item) => item != null)
@@ -762,6 +784,59 @@ function Words() {
         ? selectedWord.also
         : [];
 
+    const grammarValueEntries = Array.isArray(selectedWord.grammarValueIds)
+      ? selectedWord.grammarValueIds
+      : Array.isArray(selectedWord.grammarValues)
+        ? selectedWord.grammarValues
+        : [];
+    const grammarValueIds = grammarValueEntries
+      .map(entry => {
+        const id = Number(entry?.grammarValueId ?? entry?.valueId ?? entry?.id ?? entry);
+        if (Number.isFinite(id) && id > 0) return id;
+        if (!entry || typeof entry !== 'object') return null;
+
+        const valueNames = [
+          entry.grammarValue,
+          entry.grammarValueName,
+          entry.displayName,
+          entry.name,
+          entry.value,
+        ].map(normalizeGrammarLabel).filter(Boolean);
+        const categoryNames = [
+          typeof entry.grammarCategory === 'string' ? entry.grammarCategory : null,
+          entry.grammarCategory?.displayName,
+          entry.grammarCategory?.name,
+          entry.grammarCategory?.categoryName,
+          entry.grammarCategoryName,
+        ].map(normalizeGrammarLabel).filter(Boolean);
+        if (!valueNames.length) return null;
+
+        const matchingValues = availableGrammarValues.filter(value => {
+          const optionValueNames = [
+            value.displayName,
+            value.name,
+            value.grammarValue,
+            value.value,
+          ].map(normalizeGrammarLabel).filter(Boolean);
+          return optionValueNames.some(name => valueNames.includes(name));
+        });
+        const matchingCategory = categoryNames.length
+          ? matchingValues.find(value => {
+            const optionCategoryNames = [
+              value.grammarCategoryName,
+              typeof value.grammarCategory === 'string' ? value.grammarCategory : null,
+              value.grammarCategory?.displayName,
+              value.grammarCategory?.name,
+              value.grammarCategory?.categoryName,
+            ].map(normalizeGrammarLabel).filter(Boolean);
+            return optionCategoryNames.some(name => categoryNames.includes(name));
+          })
+          : null;
+        const match = matchingCategory || (matchingValues.length === 1 ? matchingValues[0] : null);
+        const matchId = Number(match?.id);
+        return Number.isFinite(matchId) && matchId > 0 ? matchId : null;
+      })
+      .filter((id, index, ids) => id && ids.indexOf(id) === index);
     const categoryEntries = Array.isArray(selectedWord.categories)
       ? selectedWord.categories
       : Array.isArray(selectedWord.categoryIds)
@@ -780,10 +855,8 @@ function Words() {
     );
 
     return {
-      languageId: selectedWord.languageId ?? selectedWord.language?.id ?? '',
-      grammarValueIds: Array.isArray(selectedWord.grammarValueIds)
-        ? selectedWord.grammarValueIds.map(value => Number(value?.id ?? value)).filter(Boolean)
-        : [],
+      languageId: selectedWord.languageId ?? selectedWord.language?.id ?? selectedWord.language?.languageId ?? '',
+      grammarValueIds,
       word: selectedWord.word || selectedWord.name || selectedWord.title || '',
       wordDetails: {
         expandedForm: selectedWord.wordDetails?.expandedForm || selectedWord.expandedForm || '',
@@ -793,7 +866,10 @@ function Words() {
       meaning: (selectedWord.meaning || selectedWord.definition || selectedWord.mean) ?? '',
       categoryIds,
       categoryDisplayOrders,
-      redirectCategory: selectedWord.redirectCategory?.id ?? selectedWord.redirectCategory ?? '',
+      redirectCategory: selectedWord.redirectCategoryId
+        ?? selectedWord.redirectCategory?.id
+        ?? selectedWord.redirectCategory
+        ?? '',
       examples,
       wordImage: null,
       wordImageCredits: createEmptyMediaCredits(),
@@ -809,21 +885,35 @@ function Words() {
   };
 
   const handleEdit = async (selectedWord) => {
-    setEditingWord(selectedWord);
     setActiveDraftId(null);
     try {
-      const responseData = await fetchAdminWord(selectedWord.id);
-      const fullWord = extractWordObject(responseData) || selectedWord;
-      setFormData(normalizeWordForEdit(fullWord));
+      const responseData = await fetchAdminWord(selectedWord.id, true);
+      const fullWord = extractWordObject(responseData);
+      if (!fullWord) throw new Error('The word details response was empty or invalid.');
+      let availableGrammarValues = grammarValues;
+      if (!availableGrammarValues.length) {
+        const grammarResponse = await api.get('/admin/grammar-values');
+        availableGrammarValues = Array.isArray(grammarResponse.data) ? grammarResponse.data : [];
+        setGrammarValues(availableGrammarValues);
+      }
+      setEditingWord(fullWord);
+      setFormData(normalizeWordForEdit(fullWord, availableGrammarValues));
+      setShowModal(true);
     } catch (error) {
       console.error('Failed to load word for editing', error);
-      setFormData(normalizeWordForEdit(selectedWord));
+      alert(`Failed to load word for editing: ${error.response?.data?.message || error.message || 'Unknown error.'}`);
     }
-    setShowModal(true);
   };
 
   const grammarValuesForLanguage = grammarValues.filter((value) => (
-    String(value.languageId ?? value.grammarCategory?.languageId ?? '') === String(formData.languageId)
+    String(
+      value.languageId
+      ?? value.language?.id
+      ?? value.language?.languageId
+      ?? value.grammarCategory?.languageId
+      ?? value.grammarCategory?.language?.id
+      ?? ''
+    ) === String(formData.languageId)
     && value.isActive !== false
   ));
   const normalizedGrammarValueSearch = grammarValueSearch.trim().toLocaleLowerCase();
@@ -942,81 +1032,63 @@ function Words() {
     setShowViewModal(true);
     setViewWord(null);
     try {
-      console.debug('[Words] handleView: fetching word id=', id);
-      const responseData = await fetchAdminWord(id);
-      // store raw response for debugging
-      const body = responseData;
-      console.debug('[Words] handleView: raw response:', body);
-      setViewRaw(body);
-      setViewShowRaw(false);
-      // try several common wrapper keys the backend may use
+      const body = await fetchAdminWord(id, true);
       const extracted =
-  (body?.data && typeof body.data === 'object' && body.data) ||
-  (body?.result && typeof body.result === 'object' && body.result) ||
-  (body?.payload && typeof body.payload === 'object' && body.payload) ||
-  (body?.word && typeof body.word === 'object' && body.word) ||
-  body;
-      console.debug('[Words] handleView: extracted object:', extracted);
+        (body?.data && typeof body.data === 'object' && body.data) ||
+        (body?.result && typeof body.result === 'object' && body.result) ||
+        (body?.payload && typeof body.payload === 'object' && body.payload) ||
+        (body?.word && typeof body.word === 'object' && body.word) ||
+        body;
 
-      // normalize shape to expected fields used by WordCard
       const normalize = (obj) => {
         if (!obj || typeof obj !== 'object') return null;
         const out = {};
         out.id = obj.id ?? obj.wordId ?? obj._id ?? null;
         out.word = obj.word ?? obj.name ?? obj.title ?? '';
+        out.language = obj.language ?? null;
+        out.grammarValues = Array.isArray(obj.grammarValues) ? obj.grammarValues : [];
+        out.wordDetails = obj.wordDetails && typeof obj.wordDetails === 'object' ? obj.wordDetails : {};
         out.wordType = obj.wordType ?? null;
-        out.expandedForm = obj.expandedForm ?? null;
+        out.expandedForm = obj.expandedForm ?? out.wordDetails.expandedForm ?? null;
         out.partOfSpeech = obj.partOfSpeech ?? null;
         out.meaning = obj.meaning ?? obj.definition ?? obj.mean ?? '';
         out.description = obj.description ?? obj.desc ?? null;
-        out.categoryIds = Array.isArray(obj.categories)
-          ? obj.categories.map(category => Number(category?.categoryId ?? category?.id ?? category)).filter(Boolean)
+        out.categories = Array.isArray(obj.categories) ? obj.categories : [];
+        out.categoryIds = out.categories.length
+          ? out.categories.map(category => Number(category?.categoryId ?? category?.id ?? category)).filter(Boolean)
           : Array.isArray(obj.categoryIds)
             ? obj.categoryIds.map(category => Number(category?.id ?? category)).filter(Boolean)
             : [obj.categoryId ?? obj.category_id ?? obj.category?.id].filter(Boolean).map(Number);
         out.categoryId = out.categoryIds[0] ?? null;
+        out.redirectCategoryId = obj.redirectCategoryId ?? obj.redirectCategory?.id ?? obj.redirectCategory ?? null;
+        out.redirectCategoryName = obj.redirectCategoryName ?? obj.redirectCategory?.name ?? null;
+        out.redirectWebsite = obj.redirectWebsite ?? null;
         const imgs = Array.isArray(obj.images) ? obj.images : (Array.isArray(obj.imageUrls) ? obj.imageUrls : (obj.image ? [obj.image] : []));
-        // coerce to array of strings
-        const imgUrls = (Array.isArray(imgs) ? imgs.map(i => {
-          const url = typeof i === 'string' ? i : i?.imageUrl;
+        const imageItems = imgs.map(image => typeof image === 'string' ? { imageUrl: image } : image)
+          .filter(image => typeof image?.imageUrl === 'string' && image.imageUrl.trim());
+        const imgUrls = imageItems.map(image => {
+          const url = image.imageUrl;
           return typeof url === 'string' ? url.trim() : '';
-        }).filter(Boolean) : []);
+        }).filter(Boolean);
         out.imageUrls = imgUrls;
-        out.images = imgUrls;
+        out.images = imageItems;
         out.videos = Array.isArray(obj.videos) ? obj.videos : [];
         out.audios = Array.isArray(obj.audios) ? obj.audios : [];
         out.facts = Array.isArray(obj.facts) ? obj.facts : [];
         out.examples = Array.isArray(obj.examples) ? obj.examples : (Array.isArray(obj.examplesList) ? obj.examplesList : []);
-        // relatedWordIds may be array of ids or objects; normalize to ids
-        if (Array.isArray(obj.relatedWordIds)) {
-          out.relatedWordIds = obj.relatedWordIds.map(r => {
-            if (typeof r === 'object' && r !== null) return r;
-            return r;
-          }).filter(r => r != null);
-        } else if (Array.isArray(obj.related)) {
-          out.relatedWordIds = obj.related.map(r => {
-            if (typeof r === 'object' && r !== null) return r;
-            return r;
-          }).filter(r => r != null);
-        } else {
-          out.relatedWordIds = [];
-        }
+        out.relatedWordIds = Array.isArray(obj.relatedWordIds)
+          ? obj.relatedWordIds.filter(item => item != null)
+          : Array.isArray(obj.related) ? obj.related.filter(item => item != null) : [];
         out.alsoAppearsIn = Array.isArray(obj['alsoAppearsIn']) ? obj['alsoAppearsIn'] : (Array.isArray(obj.also) ? obj.also : []);
         out['source&credits'] = obj['source&credits'] || obj.sourceAndCredits || obj.source || {};
+        out.quizModes = Array.isArray(obj.quizModes) ? obj.quizModes : [];
         out.created = obj.created ?? obj.createdAt ?? obj.created_at ?? null;
         out.updated = obj.updated ?? obj.updatedAt ?? obj.updated_at ?? null;
         return out;
       };
 
       const normalized = normalize(extracted || body);
-      console.debug('[Words] handleView: normalized object:', normalized);
       setViewWord(normalized || null);
-      // only auto-open raw JSON if normalization failed entirely (no keys)
-      if (!normalized || Object.keys(normalized).length === 0) {
-        setViewShowRaw(true);
-      } else {
-        setViewShowRaw(false);
-      }
     } catch (err) {
       console.error('Failed to fetch word details', err);
       setViewWord({ error: err.response?.data?.message || err.message });
@@ -1432,8 +1504,7 @@ function Words() {
                 {(formData.facts || []).map((f, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                    <span style={styles.factNum}>{i + 1}</span>
-                    <input
-                      type="text"
+                    <AutoResizeTextarea
                       placeholder={`Facts sentence ${i + 1}`}
                       value={f}
                       onChange={e => {
@@ -1441,7 +1512,16 @@ function Words() {
                         updated[i] = e.target.value;
                         setFormData({ ...formData, facts: updated });
                       }}
-                      style={styles.exampleInput}
+                      style={{
+                        ...styles.exampleInput,
+                        boxSizing: 'border-box',
+                        minHeight: 34,
+                        minWidth: 0,
+                        resize: 'none',
+                        overflow: 'hidden',
+                        overflowWrap: 'anywhere',
+                        whiteSpace: 'pre-wrap',
+                      }}
                     />
                     <button type="button" style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, facts: formData.facts.filter((_, j) => j !== i) })}>&#x2715;</button>
                   </div>
@@ -1461,8 +1541,7 @@ function Words() {
                 {formData.examples.map((ex, i) => (
                   <div key={i} style={styles.exampleRow}>
                     <span style={styles.exampleNum}>{i + 1}</span>
-                    <input
-                      type="text"
+                    <AutoResizeTextarea
                       placeholder={`Example sentence ${i + 1}`}
                       value={ex}
                       onChange={e => {
@@ -1470,7 +1549,16 @@ function Words() {
                         updated[i] = e.target.value;
                         setFormData({ ...formData, examples: updated });
                       }}
-                      style={styles.exampleInput}
+                      style={{
+                        ...styles.exampleInput,
+                        boxSizing: 'border-box',
+                        minHeight: 34,
+                        minWidth: 0,
+                        resize: 'none',
+                        overflow: 'hidden',
+                        overflowWrap: 'anywhere',
+                        whiteSpace: 'pre-wrap',
+                      }}
                     />
                     <button type="button"style={styles.btnRemoveExample} onClick={() => setFormData({ ...formData, examples: formData.examples.filter((_, j) => j !== i) })} >
                       &#x2715;
@@ -1788,42 +1876,21 @@ function Words() {
 
       {/* ── View Modal ── */}
       {showViewModal && (
-            <div className="modal" onClick={() => setShowViewModal(false)} >
-              <div className="modal-content" onClick={e => e.stopPropagation()}>
-            {viewLoading && <p>Loading...</p>}
-            {!viewLoading && viewWord && viewWord.error && (
-              <div style={{ color: 'red' }}>Error: {viewWord.error}</div>
-            )}
+        <div className="modal" onClick={() => setShowViewModal(false)}>
+          <div className="modal-content" onClick={event => event.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <h3 style={{ margin: 0 }}>Word Details</h3>
-                <button className="btn" onClick={() => setViewShowRaw(v => !v)}>{viewShowRaw ? 'Hide Raw' : 'Show Raw'}</button>
-              </div>
-              <div>
-                <button className="btn" onClick={() => setShowViewModal(false)}>Close</button>
-              </div>
+              <h3 style={{ margin: 0 }}>Word Details</h3>
+              <button className="btn" type="button" onClick={() => setShowViewModal(false)}>Close</button>
             </div>
-
-            {!viewLoading && viewShowRaw && viewRaw && (
-              <div style={{ marginTop: 12 }}>
-                <pre style={{ maxHeight: 400, overflow: 'auto', background: '#f8fafc', padding: 8 }}>{JSON.stringify(viewRaw, null, 2)}</pre>
-              </div>
+            {viewLoading && <p>Loading word details...</p>}
+            {!viewLoading && viewWord?.error && (
+              <div role="alert" style={{ color: 'red', marginTop: 12 }}>Error: {viewWord.error}</div>
             )}
-
-            {!viewLoading && !viewShowRaw && viewWord && !viewWord.error && (
+            {!viewLoading && viewWord && !viewWord.error && (
               <div style={{ marginTop: 12 }}>
                 <WordCard word={viewWord} />
               </div>
             )}
-
-            {/* If normalized word is empty, show a diagnostic message and the raw JSON */}
-            {!viewLoading && !viewShowRaw && (!viewWord || Object.keys(viewWord).length === 0) && (
-              <div style={{ marginTop: 12, padding: 12, background: '#fff6f6', borderRadius: 8 }}>
-                <strong>No parsed word data available.</strong>
-                <p style={{ margin: '6px 0' }}>Showing raw response to inspect fields — click <em>Show Raw</em> if hidden.</p>
-                <pre style={{ maxHeight: 240, overflow: 'auto', background: '#f8fafc', padding: 8 }}>{JSON.stringify(viewRaw, null, 2)}</pre>
-              </div>
-            )}            
           </div>
         </div>
       )}

@@ -31,13 +31,15 @@ export default function WordCard({ word, href }) {
 
   if (!word) return null;
 
-  const images = (Array.isArray(word.images) ? word.images : word.imageUrls || [])
+  const imageEntries = Array.isArray(word.images) ? word.images : word.imageUrls || [];
+  const images = imageEntries
     .map(image => typeof image === 'string' ? image : image?.imageUrl)
     .filter(Boolean);
   const mainImage = images[activeImage] || null;
-  const credits = word['source&credits'];
+  const credits = imageEntries[activeImage]?.credits || word['source&credits'];
   const videos = Array.isArray(word.videos) ? word.videos : [];
   const audios = Array.isArray(word.audios) ? word.audios : [];
+  const categories = Array.isArray(word.categories) ? word.categories : [];
 
   const content = (
     <div
@@ -103,6 +105,24 @@ export default function WordCard({ word, href }) {
             {word.categoryId != null && <Chip color="#eef2ff" text="#4338ca">Category {word.categoryId}</Chip>}
           </div>
 
+          {word.language && (
+            <p style={{ margin: '0 0 12px', color: '#475569' }}>
+              <strong>Language:</strong> {word.language.name || `Language ${word.language.id}`}
+              {word.language.code ? ` (${word.language.code})` : ''}
+            </p>
+          )}
+
+          {word.grammarValues?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <Label>Grammar values</Label>
+              <div>{word.grammarValues.map((item, index) => (
+                <Chip key={`${item?.grammarCategory || ''}-${item?.grammarValue || ''}-${index}`} color="#e0f2fe" text="#075985">
+                  {item?.grammarCategory ? `${item.grammarCategory}: ` : ''}{item?.grammarValue || item?.displayName || item?.name || ''}
+                </Chip>
+              ))}</div>
+            </div>
+          )}
+
           <p style={{ margin: '0 0 14px 0', color: '#111827', fontSize: 15 }}>
             <strong>Meaning:</strong> {word.meaning}
           </p>
@@ -115,8 +135,42 @@ export default function WordCard({ word, href }) {
             </div>
           )}
 
+          {word.wordDetails?.usage && (
+            <p style={{ margin: '0 0 12px', whiteSpace: 'pre-line' }}>
+              <strong>Usage:</strong> {word.wordDetails.usage}
+            </p>
+          )}
+
+          {word.wordDetails?.etymology && (
+            <p style={{ margin: '0 0 12px', whiteSpace: 'pre-line' }}>
+              <strong>Etymology:</strong> {word.wordDetails.etymology}
+            </p>
+          )}
+
           {word.description && (
-            <p style={{ margin: '0 0 12px 0' }}><strong>Description:</strong> {word.description}</p>
+            <p style={{ margin: '0 0 12px 0', whiteSpace: 'pre-line' }}><strong>Description:</strong> {word.description}</p>
+          )}
+
+          {categories.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <Label>Categories</Label>
+              <div>{categories.map((category, index) => (
+                <Chip key={`${category?.categoryId ?? category?.id ?? index}-${index}`} color="#eef2ff" text="#4338ca">
+                  {category?.categoryName || category?.name || `Category ${category?.categoryId ?? category?.id ?? ''}`}
+                  {category?.displayOrder != null ? ` · Order ${category.displayOrder}` : ''}
+                </Chip>
+              ))}</div>
+            </div>
+          )}
+
+          {(word.redirectCategoryId != null || word.redirectCategoryName || word.redirectWebsite) && (
+            <p style={{ margin: '0 0 12px', wordBreak: 'break-word' }}>
+              <strong>Redirect:</strong>{' '}
+              {word.redirectCategoryName || (word.redirectCategoryId != null ? `Category ${word.redirectCategoryId}` : '')}
+              {word.redirectWebsite && (
+                <> · <a href={word.redirectWebsite} target="_blank" rel="noopener noreferrer">{word.redirectWebsite}</a></>
+              )}
+            </p>
           )}
 
           {word.facts && word.facts.length > 0 && (
@@ -215,15 +269,15 @@ export default function WordCard({ word, href }) {
 
           {credits && (
             <div style={{ marginTop: 8 }}>
-              <Label>Source & Credits</Label>
+              <Label>{imageEntries[activeImage]?.credits ? 'Image credits' : 'Source & Credits'}</Label>
               <div>
                 {credits.author && <Chip color="#f3f4f6" text="#374151">by {credits.author}</Chip>}
                 {credits.platform && <Chip color="#f3f4f6" text="#374151">{credits.platform}</Chip>}
                 {credits.type && <Chip color="#f3f4f6" text="#374151">{credits.type}</Chip>}
-                {credits.licences && <Chip color="#f3f4f6" text="#374151">{credits.licences}</Chip>}
-                {credits.url && (
+                {(credits.license || credits.licences) && <Chip color="#f3f4f6" text="#374151">{credits.license || credits.licences}</Chip>}
+                {(credits.creditUrl || credits.url) && (
                   <a
-                    href={credits.url}
+                    href={credits.creditUrl || credits.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
@@ -232,7 +286,19 @@ export default function WordCard({ word, href }) {
                     view source ↗
                   </a>
                 )}
+                {credits.licenseUrl && (
+                  <a href={credits.licenseUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#2563eb', marginLeft: 4 }}>
+                    view license ↗
+                  </a>
+                )}
               </div>
+            </div>
+          )}
+
+          {word.quizModes?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <Label>Quiz modes</Label>
+              <div>{word.quizModes.map(mode => <Chip key={mode} color="#fef3c7" text="#92400e">{mode}</Chip>)}</div>
             </div>
           )}
 

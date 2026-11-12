@@ -82,10 +82,16 @@ export const searchWords = (query, page = 0, size = 10) => {
   }, hasWordListEntries);
 };
 
-export const fetchAdminWord = (wordId) => getCachedResponse(
-  `detail.${encodeURIComponent(wordId)}`,
-  async () => {
+export const fetchAdminWord = (wordId, forceRefresh = false) => {
+  const fetchResponse = async () => {
     const response = await api.get(`/admin/words/${encodeURIComponent(wordId)}`);
     return response.data;
-  }
-);
+  };
+
+  if (forceRefresh) return fetchResponse();
+
+  return getCachedResponse(
+    `detail.${encodeURIComponent(wordId)}`,
+    fetchResponse
+  );
+};
