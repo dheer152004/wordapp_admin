@@ -230,6 +230,8 @@ function Words() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewWord, setViewWord] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const [viewRaw, setViewRaw] = useState(null);
+  const [viewShowRaw, setViewShowRaw] = useState(false);
   const [selectedCategory, setSelectedCategory] = usePersistentState('wordgame.words.selectedCategory', '');
   const [grammarValueSearch, setGrammarValueSearch] = useState('');
   const [grammarValuesOpen, setGrammarValuesOpen] = useState(false);
@@ -1031,8 +1033,11 @@ function Words() {
     setViewLoading(true);
     setShowViewModal(true);
     setViewWord(null);
+    setViewRaw(null);
+    setViewShowRaw(false);
     try {
       const body = await fetchAdminWord(id, true);
+      setViewRaw(body);
       const extracted =
         (body?.data && typeof body.data === 'object' && body.data) ||
         (body?.result && typeof body.result === 'object' && body.result) ||
@@ -1879,14 +1884,35 @@ function Words() {
         <div className="modal" onClick={() => setShowViewModal(false)}>
           <div className="modal-content" onClick={event => event.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>Word Details</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ margin: 0 }}>Word Details</h3>
+                {viewRaw !== null && (
+                  <button className="btn" type="button" onClick={() => setViewShowRaw(current => !current)}>
+                    {viewShowRaw ? 'Show Details' : 'View Raw JSON'}
+                  </button>
+                )}
+              </div>
               <button className="btn" type="button" onClick={() => setShowViewModal(false)}>Close</button>
             </div>
             {viewLoading && <p>Loading word details...</p>}
             {!viewLoading && viewWord?.error && (
               <div role="alert" style={{ color: 'red', marginTop: 12 }}>Error: {viewWord.error}</div>
             )}
-            {!viewLoading && viewWord && !viewWord.error && (
+            {!viewLoading && viewShowRaw && viewRaw !== null && (
+              <pre style={{
+                marginTop: 12,
+                maxHeight: '70vh',
+                overflow: 'auto',
+                background: '#f8fafc',
+                padding: 12,
+                borderRadius: 6,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}>
+                {JSON.stringify(viewRaw, null, 2)}
+              </pre>
+            )}
+            {!viewLoading && !viewShowRaw && viewWord && !viewWord.error && (
               <div style={{ marginTop: 12 }}>
                 <WordCard word={viewWord} />
               </div>
