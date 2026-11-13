@@ -455,6 +455,20 @@ function Words() {
   useEffect(() => { fetchWords(); }, [selectedCategory, fetchWords]);
   useEffect(() => { if (reorderMessage) setSnackbarOpen(true); }, [reorderMessage]);
 
+  const isGifFile = (file) => !!file && (file.type === 'image/gif' || /\.gif$/i.test(file.name || ''));
+
+  const appendImageAsDataUrl = async (file) => {
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setFormData(prev => ({
+        ...prev,
+        imageUrls: [...(prev.imageUrls || []), { imageUrl: dataUrl, credits: createEmptyMediaCredits() }],
+      }));
+    } catch (error) {
+      console.error('Failed to read GIF image file', error);
+    }
+  };
+
   // ── Clipboard paste listener ──
   useEffect(() => {
     if (!showModal) return;
@@ -463,7 +477,13 @@ function Words() {
       const imgItem = items.find(i => i.type.startsWith('image/'));
       if (!imgItem) return;
       const file = imgItem.getAsFile();
-      if (file) openEditor(file);
+      if (file) {
+        if (isGifFile(file)) {
+          void appendImageAsDataUrl(file);
+          return;
+        }
+        openEditor(file);
+      }
     };
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
@@ -477,14 +497,25 @@ function Words() {
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) openEditor(file);
+    if (!file) return;
+    if (isGifFile(file)) {
+      void appendImageAsDataUrl(file);
+      e.target.value = '';
+      return;
+    }
+    openEditor(file);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     dropZoneRef.current?.classList.remove('drag-over');
     const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) openEditor(file);
+    if (!file) return;
+    if (isGifFile(file)) {
+      void appendImageAsDataUrl(file);
+      return;
+    }
+    if (file.type.startsWith('image/')) openEditor(file);
   };
 
   const handleDragEnd = useCallback(({ active, over }) => {
@@ -1627,7 +1658,7 @@ function Words() {
                     <span style={styles.dropText}>
                       Drop image here, <label style={styles.browseLink}>
                         browse
-                        <input type="file" accept="image/*" onChange={handleFileChange}
+                        <input type="file" accept="image/*,.gif" onChange={handleFileChange}
                           style={{ display: 'none' }} />
                       </label>, or <strong>Ctrl+V</strong> to paste
                     </span>
