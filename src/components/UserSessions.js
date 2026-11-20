@@ -252,6 +252,14 @@ function UserSessions() {
         <div>
           <button disabled={loading || bulkRevoking || page === 0} onClick={() => setPage((current) => current - 1)} type="button">Previous</button>
           <button disabled={loading || bulkRevoking || totalPages === 0 || page + 1 >= totalPages} onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+          <button
+            aria-label="Last page"
+            disabled={loading || bulkRevoking || totalPages === 0 || page + 1 >= totalPages}
+            onClick={() => setPage(totalPages - 1)}
+            type="button"
+          >
+            Last
+          </button>
         </div>
       </footer>
     </section>
