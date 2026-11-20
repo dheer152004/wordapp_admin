@@ -5,13 +5,18 @@
 .user-sessions-header p:last-child { color: var(--muted); font-size: 12px; margin-top: 5px; }
 .user-sessions-filter { display: flex; align-items: center; gap: 9px; color: #71808a; font-size: 11px; font-weight: 700; }
 .user-sessions-filter select { min-width: 140px; border: 1px solid #d8e2e6; border-radius: 5px; padding: 8px 10px; color: #334b57; background: #fff; font: inherit; }
-.user-sessions-toolbar { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px; color: #78868d; font-size: 11px; }
+.user-sessions-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px 0 10px; color: #78868d; font-size: 11px; }
+.user-sessions-toolbar-actions { display: flex; gap: 7px; }
 .user-sessions-toolbar button, .user-sessions-pagination button { border: 1px solid #d8e2e6; border-radius: 5px; background: #fff; color: #435967; padding: 7px 10px; cursor: pointer; font-size: 10px; font-weight: 700; }
 .user-sessions-toolbar button:disabled, .user-sessions-pagination button:disabled { cursor: not-allowed; opacity: .5; }
+.user-sessions-toolbar .user-sessions-bulk-revoke { border-color: #f0c5c0; background: #fff7f6; color: #a44137; }
 .user-sessions-table-wrap { overflow-x: auto; border: 1px solid #dbe5e8; border-radius: 7px; background: #fff; }
-.user-sessions-table { width: 100%; min-width: 890px; border-collapse: collapse; }
+.user-sessions-table { width: 100%; min-width: 930px; border-collapse: collapse; }
 .user-sessions-table th { background: #f5f8f8; color: #71818a; font-size: 9px; font-weight: 800; text-transform: uppercase; }
 .user-sessions-table th, .user-sessions-table td { padding: 12px 13px; border-bottom: 1px solid #edf1f2; text-align: left; white-space: nowrap; }
+.user-sessions-table .user-session-select-cell { width: 40px; padding-right: 4px; padding-left: 12px; text-align: center; }
+.user-session-select-cell input { width: 14px; height: 14px; margin: 0; accent-color: #147d73; cursor: pointer; vertical-align: middle; }
+.user-session-select-cell input:disabled { cursor: not-allowed; }
 .user-sessions-table td { color: #50616b; font-size: 10px; }
 .user-sessions-table td strong, .user-sessions-table td small { display: block; }
 .user-sessions-table td strong { color: #314754; font-size: 11px; }
