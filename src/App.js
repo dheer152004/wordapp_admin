@@ -1,5 +1,25 @@
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, Navigate } from 'react-router-dom';
+import {
+  Award,
+  BarChart3,
+  BookOpen,
+  ClipboardCheck,
+  FileText,
+  FolderOpen,
+  Languages as LanguagesIcon,
+  ListChecks,
+  ListTree,
+  LogOut,
+  Mail,
+  Monitor,
+  RefreshCw,
+  Scale,
+  Sparkles,
+  Tags,
+  Users as UsersIcon,
+  LayoutDashboard,
+} from 'lucide-react';
 import Login from './components/Login';
 import Categories from './components/Categories';
 import AdminCategories from './components/AdminCategories';
@@ -57,29 +77,29 @@ function App() {
             </Link>
             <div className="sidebar-section-label">Workspace</div>
             <nav className="sidebar-nav">
-              <NavLink to="/dashboard" end>⌂ <span>Dashboard</span></NavLink>
-              <NavLink to="/words">▣ <span>Words</span></NavLink>
-              <NavLink to="/word-drafts">▤ <span>Drafts</span></NavLink>
-              <NavLink to="/" end>▦ <span>Categories</span></NavLink>
-              {/* <NavLink to="/admin/categories">▦ <span>Manage categories</span></NavLink> */}
-              <NavLink to="/genres">◈ <span>Genres</span></NavLink>
-              <NavLink to="/languages">L <span>Languages</span></NavLink>
-              <NavLink to="/grammar-categories">G <span>Grammar categories</span></NavLink>
-              <NavLink to="/grammar-values">V <span>Grammar values</span></NavLink>
-              <NavLink to="/quiz">✓ <span>Quiz management</span></NavLink>
-              <NavLink to="/word-of-the-day">✦ <span>Word of the day</span></NavLink>
-              <NavLink to="/badges">🏅 <span>Badges</span></NavLink>
-              <NavLink to="/app-versions">↻ <span>App versions</span></NavLink>
-              <NavLink to="/user-sessions">◉ <span>User sessions</span></NavLink>
-              <NavLink to="/user-request-categories">✉ <span>User requests</span></NavLink>
-              {/* <NavLink to="/bulk-import">↥ <span>Bulk import</span></NavLink> */}
-              <NavLink to="/users">♙ <span>Users</span></NavLink>
-              <NavLink to="/reports">▥ <span>Reports</span></NavLink>
-              <NavLink to="/legal-documents">▤ <span>Legal documents</span></NavLink>
+              <NavLink to="/dashboard" end><LayoutDashboard aria-hidden="true" /><span>Dashboard</span></NavLink>
+              <NavLink to="/words"><BookOpen aria-hidden="true" /><span>Words</span></NavLink>
+              <NavLink to="/word-drafts"><FileText aria-hidden="true" /><span>Drafts</span></NavLink>
+              <NavLink to="/" end><FolderOpen aria-hidden="true" /><span>Categories</span></NavLink>
+              {/* <NavLink to="/admin/categories"><FolderOpen aria-hidden="true" /><span>Manage categories</span></NavLink> */}
+              <NavLink to="/genres"><Tags aria-hidden="true" /><span>Genres</span></NavLink>
+              <NavLink to="/languages"><LanguagesIcon aria-hidden="true" /><span>Languages</span></NavLink>
+              <NavLink to="/grammar-categories"><ListTree aria-hidden="true" /><span>Grammar categories</span></NavLink>
+              <NavLink to="/grammar-values"><ListChecks aria-hidden="true" /><span>Grammar values</span></NavLink>
+              <NavLink to="/quiz"><ClipboardCheck aria-hidden="true" /><span>Quiz management</span></NavLink>
+              <NavLink to="/word-of-the-day"><Sparkles aria-hidden="true" /><span>Word of the day</span></NavLink>
+              <NavLink to="/badges"><Award aria-hidden="true" /><span>Badges</span></NavLink>
+              <NavLink to="/app-versions"><RefreshCw aria-hidden="true" /><span>App versions</span></NavLink>
+              <NavLink to="/user-sessions"><Monitor aria-hidden="true" /><span>User sessions</span></NavLink>
+              <NavLink to="/user-request-categories"><Mail aria-hidden="true" /><span>User requests</span></NavLink>
+              {/* <NavLink to="/bulk-import"><FileText aria-hidden="true" /><span>Bulk import</span></NavLink> */}
+              <NavLink to="/users"><UsersIcon aria-hidden="true" /><span>Users</span></NavLink>
+              <NavLink to="/reports"><BarChart3 aria-hidden="true" /><span>Reports</span></NavLink>
+              <NavLink to="/legal-documents"><Scale aria-hidden="true" /><span>Legal documents</span></NavLink>
             </nav>
             <div className="sidebar-footer">
               <div className="sidebar-help">Need help?<small>Check the documentation or contact support.</small></div>
-              <button onClick={handleLogout} className="sidebar-logout">Log out</button>
+              <button onClick={handleLogout} className="sidebar-logout"><LogOut aria-hidden="true" /><span>Log out</span></button>
             </div>
           </aside>
         )}
