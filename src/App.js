@@ -21,6 +21,8 @@ import AppVersions from './components/AppVersions';
 import UserSessions from './components/UserSessions';
 import UserRequestCategories from './components/UserRequestCategories';
 import Badges from './components/Badges';
+import { invalidateCategoryCache } from './services/categoryService';
+import { invalidateWordCache } from './services/wordCacheService';
 import './App.css';
 
 function App() {
@@ -36,6 +38,12 @@ function App() {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+  };
+
+  const handleRefresh = () => {
+    invalidateCategoryCache();
+    invalidateWordCache();
+    window.location.reload();
   };
 
   return (
@@ -79,7 +87,19 @@ function App() {
           {token && (
             <header className="topbar">
               <div className="search-shell">⌕ <span>Search words, categories, or anything...</span></div>
-              <div className="topbar-user"><span className="notification">♧</span><span className="user-avatar">{(user?.displayName || user?.username || 'A').slice(0, 1).toUpperCase()}</span><span>{user?.displayName || user?.username || 'Admin'}<small>Admin</small></span>⌄</div>
+              <div className="topbar-actions">
+                <button
+                  type="button"
+                  className="topbar-refresh"
+                  onClick={handleRefresh}
+                  aria-label="Refresh saved API data and images"
+                  title="Clear saved API data and reload"
+                >
+                  <span aria-hidden="true">↻</span>
+                  Refresh
+                </button>
+                <div className="topbar-user"><span className="notification">♧</span><span className="user-avatar">{(user?.displayName || user?.username || 'A').slice(0, 1).toUpperCase()}</span><span>{user?.displayName || user?.username || 'Admin'}<small>Admin</small></span>⌄</div>
+              </div>
             </header>
           )}
           <main className="container">
