@@ -176,11 +176,11 @@ export default function WordCard({ word, href }) {
           {word.facts && word.facts.length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <Label>Facts</Label>
-              <div style={{ display: 'grid', gap: 4, color: '#374151', fontSize: 13 }}>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {word.facts.map((fact, index) => (
-                  <p key={index} style={{ margin: 0, whiteSpace: 'pre-line' }}>{fact}</p>
+                  <li key={index} style={{ marginBottom: 4 }}>{fact}</li>
                 ))}
-              </div>
+              </ul>
             </div>
           )}
 
