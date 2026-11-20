@@ -445,6 +445,7 @@ function Categories() {
 
   const [showModal, setShowModal] = useState(false);
   const [editingCat, setEditingCat] = useState(null);
+  const [viewingCategory, setViewingCategory] = useState(null);
 
   const [formData, setFormData] = usePersistentState('wordgame.categories.formData', {
     genreId: '',
@@ -769,49 +770,41 @@ function Categories() {
             key={category.id}
             className="category-card"
           >
-            {category.imageUrl && (
-              <img
-                src={category.imageUrl}
-                alt={category.name}
-                onError={(e) => {
-                  e.target.src =
-                    'https://placehold.co/300x200?text=No+Image';
-                }}
-              />
-            )}
+            <div className="category-image">
+              {category.imageUrl ? (
+                <img
+                  src={category.imageUrl}
+                  alt={category.name}
+                  onError={(e) => {
+                    e.target.src =
+                      'https://placehold.co/300x200?text=No+Image';
+                  }}
+                />
+              ) : (
+                <div className="category-image-placeholder" aria-hidden="true">
+                  No image
+                </div>
+              )}
+            </div>
 
             <div className="category-info">
               <h3>{category.name}</h3>
 
-              <p>{category.description}</p>
+              <p className="category-description">{category.description || 'No description available.'}</p>
 
-              <h4>
               <span className="word-count ">
                 Genre: {category.genreName || category.genreId || 'Unassigned'}
               </span>
-              </h4>
 
-              {/* <span className="word-count">
-                Age Rating: {category.ageRating || 'ALL'}
-              </span> */}
-
-              <span className="word-count" style={{ color: 'black',padding: '8px 15px' }}>
+              <span className="word-count category-age-rating">
                 Age Rating: {formatAgeRating(category.ageRating)}
               </span>
 
-
-              <span className="word-count" style={{ color: 'green' }}>
+              <span className="word-count category-word-count">
                 {category.wordCount} words
               </span>
 
-              <div
-                style={{
-                  marginTop: 8,
-                  display: 'flex',
-                  gap: 6,
-                  flexWrap: 'wrap',
-                }}
-              >
+              <div className="category-actions">
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
@@ -849,6 +842,15 @@ function Categories() {
                   }
                 >
                   Delete
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm category-more-button"
+                  onClick={() => setViewingCategory(category)}
+                  aria-label={`View more details for ${category.name}`}
+                  title="View full category details"
+                >
+                  ...
                 </button>
               </div>
             </div>
@@ -894,6 +896,41 @@ function Categories() {
           <ChevronRight size={18} aria-hidden="true" />
         </button>
       </div>
+
+      {viewingCategory && (
+        <div
+          className="modal"
+          onClick={() => setViewingCategory(null)}
+        >
+          <div
+            className="modal-content category-details-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="category-details-title"
+            onClick={event => event.stopPropagation()}
+          >
+            <h3 id="category-details-title">{viewingCategory.name}</h3>
+            {viewingCategory.imageUrl && (
+              <img
+                className="category-details-image"
+                src={viewingCategory.imageUrl}
+                alt={viewingCategory.name}
+              />
+            )}
+            <p>{viewingCategory.description || 'No description available.'}</p>
+            <p><strong>Genre:</strong> {viewingCategory.genreName || viewingCategory.genreId || 'Unassigned'}</p>
+            <p><strong>Age rating:</strong> {formatAgeRating(viewingCategory.ageRating)}</p>
+            <p><strong>Words:</strong> {viewingCategory.wordCount ?? 0}</p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setViewingCategory(null)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal */}
       {showModal && (
